@@ -1,0 +1,2450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Uni Eats — Admin</title>
+<style>
+  :root {
+    /* ---- Uni Eats brand: #02BA26 (primary green), #106C2F (deep green), #FF7A00 (contrast orange) ----
+       Neutrals are OKLCH, tinted toward the brand's green hue (~142) at every
+       step instead of flat gray — keeps the whole UI feeling like one
+       material instead of "brand color dropped onto a generic template." */
+    --bg: oklch(96.5% 0.006 142);
+    --surface: oklch(99% 0.003 142);
+    --surface-2: oklch(93.5% 0.008 142);
+    --border: oklch(89% 0.01 142);
+    --text: oklch(23% 0.014 142);
+    --text-soft: oklch(42% 0.012 142);
+    --text-faint: oklch(58% 0.01 142);
+
+    --primary: #02BA26;
+    --primary-strong: #106C2F;
+    --primary-tint: color-mix(in oklch, #02BA26 16%, var(--surface) 84%);
+    --primary-tint-text: #106C2F;
+
+    --accent: #FF7A00;
+    --accent-tint: color-mix(in oklch, #FF7A00 16%, var(--surface) 84%);
+    --accent-tint-text: color-mix(in oklch, #FF7A00 70%, var(--text) 30%);
+
+    --danger: oklch(58% 0.2 24);
+    --danger-tint: oklch(94% 0.045 24);
+    --danger-tint-text: oklch(42% 0.17 24);
+
+    --warn: #FF7A00;
+    --warn-tint: color-mix(in oklch, #FF7A00 14%, var(--surface) 86%);
+    --warn-tint-text: color-mix(in oklch, #FF7A00 65%, var(--text) 35%);
+
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+
+    --shadow-xs: 0 1px 2px oklch(23% 0.014 142 / 0.04);
+    --shadow: 0 1px 2px oklch(23% 0.014 142 / 0.04), 0 4px 14px oklch(23% 0.014 142 / 0.06);
+    --shadow-md: 0 2px 4px oklch(23% 0.014 142 / 0.05), 0 10px 28px oklch(23% 0.014 142 / 0.09);
+    --shadow-brand: 0 10px 26px color-mix(in oklch, var(--primary) 32%, transparent);
+    --ring: 0 0 0 3px color-mix(in oklch, var(--primary) 30%, transparent);
+
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-spring: cubic-bezier(0.34, 1.32, 0.64, 1);
+  }
+
+  [data-theme="dark"] {
+    --bg: oklch(17% 0.012 142);
+    --surface: oklch(21% 0.013 142);
+    --surface-2: oklch(25.5% 0.015 142);
+    --border: oklch(32% 0.016 142);
+    --text: oklch(95% 0.005 142);
+    --text-soft: oklch(80% 0.008 142);
+    --text-faint: oklch(60% 0.01 142);
+
+    --primary-tint: color-mix(in oklch, #02BA26 28%, var(--bg) 72%);
+    --primary-tint-text: color-mix(in oklch, #02BA26 70%, var(--text) 30%);
+
+    --accent-tint: color-mix(in oklch, #FF7A00 26%, var(--bg) 74%);
+    --accent-tint-text: color-mix(in oklch, #FF7A00 75%, var(--text) 25%);
+
+    --danger-tint: oklch(30% 0.075 24);
+    --danger-tint-text: oklch(85% 0.095 24);
+
+    --warn-tint: color-mix(in oklch, #FF7A00 24%, var(--bg) 76%);
+    --warn-tint-text: color-mix(in oklch, #FF7A00 78%, var(--text) 22%);
+
+    --shadow-xs: 0 1px 2px oklch(0% 0 0 / 0.25);
+    --shadow: 0 1px 2px oklch(0% 0 0 / 0.3), 0 8px 24px oklch(0% 0 0 / 0.35);
+    --shadow-md: 0 4px 10px oklch(0% 0 0 / 0.32), 0 16px 36px oklch(0% 0 0 / 0.4);
+    --shadow-brand: 0 12px 28px color-mix(in oklch, var(--primary) 38%, transparent);
+    --ring: 0 0 0 3px color-mix(in oklch, var(--primary) 38%, transparent);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif;
+    background:
+      radial-gradient(540px 380px at 100% -6%, color-mix(in oklch, var(--primary) 7%, transparent), transparent 70%),
+      radial-gradient(460px 320px at -4% 110%, color-mix(in oklch, var(--accent) 5%, transparent), transparent 72%),
+      var(--bg);
+    background-attachment: fixed;
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.45;
+    letter-spacing: -0.0025em;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; }
+  a, button, input, select, textarea { color-scheme: light; }
+  [data-theme="dark"] a, [data-theme="dark"] button, [data-theme="dark"] input,
+  [data-theme="dark"] select, [data-theme="dark"] textarea { color-scheme: dark; }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--ring);
+    border-radius: var(--radius-sm);
+  }
+  button:focus-visible { box-shadow: var(--ring); }
+
+  .app { display: grid; grid-template-columns: 258px 1fr; min-height: 100vh; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    box-shadow: var(--shadow-xs);
+    padding: 18px 12px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    position: relative;
+    z-index: 2;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 11px;
+    padding: 6px 10px 20px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .brand-mark {
+    width: 46px; height: 46px; border-radius: var(--radius-md);
+    box-shadow: var(--shadow-brand);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; overflow: hidden;
+  }
+  .brand-mark img { width: 100%; height: 100%; object-fit: contain; }
+  .brand-name { font-weight: 800; font-size: 15.5px; letter-spacing: -0.015em; }
+  .brand-sub { font-size: 11px; color: var(--text-faint); font-weight: 500; }
+
+  .nav-top-item, .nav-group-header, .nav-sub-item {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; border: none; background: none; cursor: pointer;
+    text-align: left; color: var(--text-soft);
+    border-radius: var(--radius-sm);
+    font-size: 13.5px;
+    transition: background-color 0.16s var(--ease), color 0.16s var(--ease), transform 0.16s var(--ease), box-shadow 0.16s var(--ease);
+  }
+  .nav-top-item, .nav-group-header { padding: 9px 10px; font-weight: 600; margin: 1px 0; }
+  .nav-sub-item { padding: 7px 10px 7px 38px; font-weight: 500; font-size: 13px; margin: 1px 0; }
+
+  .nav-top-item:hover, .nav-group-header:hover, .nav-sub-item:hover {
+    background: var(--surface-2); color: var(--text); transform: translateX(1px);
+  }
+  .nav-top-item:active, .nav-sub-item:active { transform: scale(0.98); }
+  .nav-top-item.active, .nav-sub-item.active {
+    background: linear-gradient(135deg, color-mix(in oklch, var(--primary) 13%, var(--surface)), color-mix(in oklch, var(--primary) 7%, var(--surface)));
+    color: var(--primary-strong);
+    font-weight: 700;
+    box-shadow: var(--shadow-xs), inset 0 0 0 1px color-mix(in oklch, var(--primary) 18%, transparent);
+  }
+  .nav-top-item.active .nav-icon, .nav-sub-item.active .nav-icon { opacity: 1; color: var(--primary); }
+  .nav-icon { width: 17px; text-align: center; flex-shrink: 0; opacity: 0.75; transition: color 0.16s var(--ease); }
+  .nav-label { flex: 1; }
+  .nav-chevron { width: 12px; opacity: 0.55; transition: transform 0.22s var(--ease); font-size: 10px; }
+  .nav-group.open .nav-chevron { transform: rotate(90deg); }
+  .nav-badge {
+    font-size: 10.5px; font-weight: 800; padding: 1.5px 6.5px; border-radius: 99px;
+    background: var(--danger); color: white; box-shadow: 0 2px 6px color-mix(in oklch, var(--danger) 45%, transparent);
+  }
+  /* Distinguishes badges backed by demo data (no real collection behind
+     them yet) from real alert counts — same idea as the page-level
+     DEMO_PAGES banner, but visible before the user even navigates in. */
+  .nav-badge.demo {
+    background: var(--surface-2); color: var(--muted); box-shadow: none;
+  }
+  .nav-sub-list {
+    display: grid;
+    grid-template-rows: 0fr;
+    overflow: hidden;
+    transition: grid-template-rows 0.22s var(--ease);
+  }
+  .nav-group.open .nav-sub-list { grid-template-rows: 1fr; }
+  .nav-sub-list-inner { min-height: 0; display: flex; flex-direction: column; gap: 1px; padding-top: 3px; padding-bottom: 6px; position: relative; }
+  .nav-sub-list-inner::before {
+    content: ''; position: absolute; left: 19px; top: 2px; bottom: 8px; width: 1px;
+    background: var(--border);
+  }
+
+  .sidebar-foot { margin-top: auto; padding: 10px; }
+  .admin-chip { display: flex; align-items: center; gap: 9px; padding: 9px; border-radius: var(--radius-md); background: var(--surface-2); }
+  .admin-avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), color-mix(in oklch, var(--accent) 70%, var(--danger) 30%));
+    color: white; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 12.5px; flex-shrink: 0;
+  }
+  .admin-name { font-weight: 700; font-size: 12.5px; }
+  .admin-role { font-size: 11px; color: var(--text-faint); }
+
+  /* ---------- Main ---------- */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 15px 28px;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in oklch, var(--surface) 92%, transparent);
+    backdrop-filter: blur(10px);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .page-title { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; }
+  .page-sub { font-size: 12.5px; color: var(--text-faint); margin-top: 3px; }
+  .topbar-actions { display: flex; align-items: center; gap: 10px; }
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: var(--surface); color: var(--text-soft); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+    transition: background-color 0.16s var(--ease), border-color 0.16s var(--ease), transform 0.16s var(--ease), box-shadow 0.16s var(--ease);
+  }
+  .icon-btn:hover { background: var(--surface-2); border-color: var(--text-faint); transform: translateY(-1px); box-shadow: var(--shadow-xs); }
+  .icon-btn:active { transform: translateY(0) scale(0.96); }
+
+  .content { padding: 26px 28px 64px; overflow-y: auto; }
+
+  .section-head {
+    display: flex; align-items: baseline; gap: 10px; margin: 0 0 14px;
+  }
+  .section-head h2 { font-size: 15px; font-weight: 800; margin: 0; letter-spacing: -0.01em; }
+  .section-head .trend-pill { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+  .trend-pill.down { background: var(--danger-tint); color: var(--danger-tint-text); }
+  .trend-pill.up { background: var(--accent-tint); color: var(--accent-tint-text); }
+  /* Real-time indicator — Customers/Restaurants/Drivers/Orders/History are
+     now driven by Firestore onSnapshot listeners (see _recomputeDashboard),
+     not a one-time fetch on login, so this is genuinely live. */
+  .live-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 99px;
+    background: var(--accent-tint); color: var(--accent-tint-text);
+  }
+  .live-pill::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor; animation: live-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+  section.block { margin-bottom: 32px; }
+  section.block + section.block { padding-top: 2px; }
+
+  /* Action bar */
+  .action-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .chip {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid transparent; cursor: pointer; border-radius: var(--radius-md);
+    padding: 10px 14px; font-weight: 700; font-size: 13px;
+    transition: transform 0.16s var(--ease), box-shadow 0.16s var(--ease), border-color 0.16s var(--ease);
+  }
+  .chip:hover { transform: translateY(-1.5px); box-shadow: var(--shadow); }
+  .chip:active { transform: translateY(0); }
+  .chip .chip-count {
+    background: rgba(0,0,0,0.12); border-radius: 99px; padding: 1px 7px; font-size: 11.5px;
+  }
+  .chip.tone-danger { background: var(--danger-tint); color: var(--danger-tint-text); border-color: color-mix(in oklch, var(--danger) 22%, transparent); }
+  .chip.tone-warn { background: var(--warn-tint); color: var(--warn-tint-text); border-color: color-mix(in oklch, var(--warn) 24%, transparent); }
+
+  /* KPI strip */
+  .kpi-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 14px; }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 19px 19px 17px; cursor: pointer; position: relative; overflow: hidden;
+    transition: border-color 0.18s var(--ease), transform 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  }
+  .kpi-card:hover { border-color: color-mix(in oklch, var(--primary) 45%, var(--border)); transform: translateY(-3px); box-shadow: var(--shadow-md); }
+  .kpi-card.primary {
+    background: linear-gradient(150deg, var(--primary) 0%, var(--primary-strong) 100%);
+    border-color: var(--primary); box-shadow: var(--shadow-brand);
+  }
+  .kpi-card.primary::after {
+    content: ''; position: absolute; right: -30px; top: -30px; width: 120px; height: 120px;
+    border-radius: 50%; background: color-mix(in oklch, white 14%, transparent);
+  }
+  .kpi-card.primary:hover { transform: translateY(-3px); box-shadow: var(--shadow-brand), var(--shadow-md); }
+  .kpi-card.primary .kpi-label, .kpi-card.primary .kpi-value { color: white; }
+  .kpi-card.primary .kpi-trend.up { background: rgba(255,255,255,0.22); color: white; }
+  .kpi-icon {
+    width: 30px; height: 30px; border-radius: var(--radius-sm); margin-bottom: 12px;
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+    background: color-mix(in oklch, var(--primary) 12%, transparent); color: var(--primary-strong);
+  }
+  .kpi-card.primary .kpi-icon { background: color-mix(in oklch, white 20%, transparent); color: white; position: relative; z-index: 1; }
+  .kpi-label { font-size: 12px; color: var(--text-faint); font-weight: 600; margin-bottom: 8px; position: relative; z-index: 1; }
+  .kpi-value { font-size: 25px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; position: relative; z-index: 1; }
+  .kpi-foot { display: flex; align-items: center; gap: 8px; margin-top: 11px; position: relative; z-index: 1; }
+  .kpi-trend { font-size: 11.5px; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+  .kpi-trend.up { background: var(--accent-tint); color: var(--accent-tint-text); }
+  .kpi-trend.steady { background: var(--surface-2); color: var(--text-faint); }
+  .kpi-vs { font-size: 11.5px; color: var(--text-faint); }
+  .kpi-card.primary .kpi-vs { color: rgba(255,255,255,0.75); }
+
+  /* Profit overview */
+  .profit-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 15px;
+    transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease), transform 0.16s var(--ease);
+  }
+  .stat-card:hover { border-color: color-mix(in oklch, var(--primary) 30%, var(--border)); box-shadow: var(--shadow-xs); transform: translateY(-1px); }
+  .stat-label { font-size: 11.5px; color: var(--text-faint); font-weight: 600; margin-bottom: 7px; display: flex; align-items: center; gap: 6px; }
+  .stat-value { font-size: 16.5px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .stat-card.commission .stat-value { color: var(--accent-tint-text); }
+
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .bar-chart { display: flex; align-items: flex-end; gap: 60px; height: 200px; padding: 0 30px; justify-content: center; }
+  .bar-col { display: flex; flex-direction: column; align-items: center; gap: 11px; width: 130px; }
+  .bar-wrap { width: 84px; height: 168px; display: flex; align-items: flex-end; }
+  .bar {
+    width: 100%; border-radius: 8px 8px 3px 3px; position: relative;
+    display: flex; align-items: flex-start; justify-content: center;
+    transition: height 0.6s var(--ease);
+  }
+  .bar .bar-value { position: absolute; top: -23px; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .bar-col-label { font-size: 12.5px; color: var(--text-soft); font-weight: 600; }
+  .bar.last { background: color-mix(in oklch, var(--text-faint) 55%, var(--surface-2)); }
+  .bar.this { background: linear-gradient(180deg, color-mix(in oklch, var(--primary) 92%, white 8%), var(--primary-strong)); }
+
+  /* Live orders */
+  .status-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .status-pill {
+    border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-md);
+    padding: 14px 16px; cursor: pointer; text-align: left;
+    transition: border-color 0.18s var(--ease), transform 0.16s var(--ease), box-shadow 0.18s var(--ease);
+    display: flex; align-items: center; gap: 11px;
+  }
+  .status-pill::before {
+    content: ''; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+    background: var(--dot, var(--border));
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--dot, var(--border)) 16%, transparent);
+  }
+  .status-pill:hover {
+    transform: translateY(-2px); box-shadow: var(--shadow-md);
+    border-color: color-mix(in oklch, var(--dot, var(--text-faint)) 45%, var(--border));
+  }
+  .status-count { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .status-name { font-size: 12px; color: var(--text-faint); font-weight: 600; margin-top: 2px; }
+
+  /* Top performers */
+  .perf-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; }
+  .item-bars { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+  .item-bar-row { display: grid; grid-template-columns: 120px 1fr 36px; align-items: center; gap: 10px; }
+  .item-bar-name { font-size: 12.5px; font-weight: 600; color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .item-bar-name:hover { color: var(--primary); }
+  .item-bar-track { background: var(--surface-2); border-radius: 6px; height: 14px; overflow: hidden; }
+  .item-bar-fill { height: 100%; background: var(--primary); border-radius: 6px; transition: width 0.5s var(--ease); cursor: pointer; }
+  .item-bar-val { font-size: 12px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+
+  .donut-wrap { display: flex; align-items: center; gap: 20px; }
+  .legend { display: flex; flex-direction: column; gap: 9px; flex: 1; }
+  .legend-row { display: flex; align-items: center; gap: 9px; cursor: pointer; border-radius: 8px; padding: 5px 6px; transition: background-color 0.16s var(--ease); }
+  .legend-row:hover { background: var(--surface-2); }
+  .legend-swatch { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+  .legend-name { font-size: 12.5px; font-weight: 600; flex: 1; }
+  .legend-val { font-size: 12.5px; font-weight: 700; color: var(--text-faint); }
+
+  /* Recent activity */
+  .activity-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); }
+  .activity-row {
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    border-bottom: 1px solid var(--border); cursor: pointer; background: none; border-left: none; border-right: none; border-top: none;
+    width: 100%; text-align: left; color: var(--text);
+    transition: background-color 0.16s var(--ease);
+  }
+  .activity-row:last-child { border-bottom: none; }
+  .activity-row:hover { background: var(--surface-2); }
+  .activity-icon {
+    width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 15px;
+  }
+  .activity-icon.order { background: var(--primary-tint); color: var(--primary-tint-text); }
+  .activity-icon.signup { background: var(--accent-tint); color: var(--accent-tint-text); }
+  .activity-main { flex: 1; min-width: 0; }
+  .activity-title { font-size: 13px; font-weight: 600; }
+  .activity-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 1px; }
+  .activity-time { font-size: 11.5px; color: var(--text-faint); flex-shrink: 0; }
+
+  /* Placeholder pages */
+  .placeholder-page { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 60px 0; }
+  .placeholder-page .ph-icon {
+    width: 52px; height: 52px; border-radius: 14px; background: var(--primary-tint); color: var(--primary-tint-text);
+    display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 8px;
+  }
+  .placeholder-page h2 { margin: 0; font-size: 20px; }
+  .placeholder-page p { color: var(--text-faint); max-width: 480px; margin: 0; }
+
+  /* Toasts */
+  .toast-stack {
+    position: fixed; bottom: 22px; right: 22px; display: flex; flex-direction: column; gap: 10px; z-index: 999;
+  }
+  .toast {
+    background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-md);
+    border-radius: var(--radius-md); padding: 12px 17px; font-size: 12.5px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 10px;
+    animation: toast-in 0.32s var(--ease-spring);
+  }
+  .toast .toast-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--primary); flex-shrink: 0;
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary) 16%, transparent);
+  }
+  .toast.leaving { animation: toast-out 0.22s var(--ease) forwards; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(14px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes toast-out { to { opacity: 0; transform: translateY(6px) scale(0.97); } }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .search-input { flex: 1; min-width: 180px; padding: 9px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease); }
+  .search-input:focus { outline: none; border-color: var(--primary); box-shadow: var(--ring); }
+  .toolbar select { padding: 9px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; border: none; cursor: pointer; border-radius: var(--radius-sm);
+    padding: 9px 14px; font-weight: 700; font-size: 13px; white-space: nowrap;
+    transition: transform 0.16s var(--ease), box-shadow 0.16s var(--ease), background-color 0.16s var(--ease), border-color 0.16s var(--ease);
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:active { transform: translateY(0) scale(0.98); }
+  .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-strong)); color: #fff; box-shadow: 0 1px 2px color-mix(in oklch, var(--primary) 30%, transparent); }
+  .btn-primary:hover { box-shadow: var(--shadow-brand); }
+  .btn-outline { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-outline:hover { background: var(--surface-2); border-color: color-mix(in oklch, var(--text) 18%, var(--border)); }
+  .btn-danger-outline { background: var(--surface); color: var(--danger-tint-text); border: 1px solid var(--border); }
+  .btn-danger-outline:hover { background: var(--danger-tint); border-color: color-mix(in oklch, var(--danger) 25%, transparent); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-sm { padding: 6px 11px; font-size: 12px; border-radius: 7px; }
+
+  /* ---------- Data table ---------- */
+  .data-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; overflow-x: auto; box-shadow: var(--shadow-xs); }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 600px; }
+  .data-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 800; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2); white-space: nowrap; }
+  .data-table td { padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tbody tr { transition: background-color 0.12s var(--ease); }
+  .data-table tbody tr:hover { background: color-mix(in oklch, var(--primary) 4%, var(--surface)); }
+  .cell-main { font-weight: 700; }
+  .cell-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 1px; }
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  .table-foot { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-faint); }
+
+  /* ---------- Badges ---------- */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800;
+    padding: 3.5px 10px 3.5px 8px; border-radius: 99px; white-space: nowrap; text-transform: capitalize;
+    letter-spacing: 0.1px;
+  }
+  .badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; opacity: 0.85; }
+  .badge.success { background: var(--primary-tint); color: var(--primary-tint-text); }
+  .badge.warn { background: var(--warn-tint); color: var(--warn-tint-text); }
+  .badge.danger { background: var(--danger-tint); color: var(--danger-tint-text); }
+  .badge.neutral { background: var(--surface-2); color: var(--text-faint); }
+
+  .empty-state { padding: 54px 20px; text-align: center; color: var(--text-faint); font-size: 13px; }
+
+  /* ---------- Card grid (banners) ---------- */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+  .entity-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;
+    transition: transform 0.18s var(--ease), border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  }
+  .entity-card:hover { transform: translateY(-3px); border-color: color-mix(in oklch, var(--primary) 40%, var(--border)); box-shadow: var(--shadow-md); }
+  .entity-card .card-banner {
+    width: 100%; height: 86px;
+    background: linear-gradient(150deg, color-mix(in oklch, var(--primary) 16%, var(--surface)), color-mix(in oklch, var(--accent) 14%, var(--surface)));
+    display: flex; align-items: center; justify-content: center; font-size: 26px;
+  }
+  .entity-card .card-body { padding: 14px 16px; }
+  .entity-card .card-title { font-weight: 700; font-size: 13.5px; margin-bottom: 3px; }
+  .entity-card .card-sub { font-size: 11.5px; color: var(--text-faint); margin-bottom: 4px; }
+  .entity-card .card-meta { font-size: 11px; color: var(--text-faint); margin-bottom: 10px; }
+  .entity-card .card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* ---------- Modal ---------- */
+  .modal-overlay {
+    position: fixed; inset: 0; background: color-mix(in oklch, var(--text) 38%, transparent);
+    backdrop-filter: blur(3px);
+    display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+    animation: overlay-in 0.18s var(--ease);
+  }
+  @keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
+  .modal-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl);
+    width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto;
+    box-shadow: var(--shadow-md); animation: modal-in 0.22s var(--ease-spring);
+  }
+  @keyframes modal-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 19px 22px; border-bottom: 1px solid var(--border); }
+  .modal-head h3 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+  .modal-close { width: 28px; height: 28px; border-radius: var(--radius-sm); border: none; background: var(--surface-2); cursor: pointer; color: var(--text-soft); font-size: 14px; flex-shrink: 0; transition: background-color 0.14s var(--ease); }
+  .modal-close:hover { background: var(--border); }
+  .modal-body { padding: 22px; }
+  .modal-body p { margin: 0; color: var(--text-soft); font-size: 13.5px; line-height: 1.6; }
+  .modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px; border-top: 1px solid var(--border); }
+
+  /* ---------- Forms ---------- */
+  .form-grid { display: flex; flex-direction: column; gap: 15px; }
+  .form-row { display: flex; flex-direction: column; gap: 6px; }
+  .form-row.cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-row label { font-size: 12px; font-weight: 700; color: var(--text-soft); }
+  .form-row input, .form-row select, .form-row textarea {
+    padding: 9px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13.5px; font-family: inherit;
+    transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease);
+  }
+  .form-row textarea { resize: vertical; min-height: 64px; }
+  .form-row input:focus, .form-row select:focus, .form-row textarea:focus { outline: none; border-color: var(--primary); box-shadow: var(--ring); }
+
+  /* ---------- Detail view ---------- */
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; margin-bottom: 4px; }
+  .detail-item .d-label { font-size: 11px; color: var(--text-faint); font-weight: 700; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .detail-item .d-value { font-size: 13.5px; font-weight: 600; }
+  .detail-divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+  /* ---------- Live/Testing environment switch ---------- */
+  .env-switch {
+    display: flex; align-items: center; gap: 7px; border: 1px solid color-mix(in oklch, var(--primary) 40%, transparent); cursor: pointer;
+    background: var(--primary-tint); color: var(--primary-tint-text); border-radius: 99px;
+    padding: 7px 14px 7px 11px; font-size: 11.5px; font-weight: 800; letter-spacing: 0.5px;
+    transition: background-color 0.18s var(--ease), border-color 0.18s var(--ease), color 0.18s var(--ease), transform 0.16s var(--ease), box-shadow 0.18s var(--ease);
+  }
+  .env-switch:hover { transform: translateY(-1px); box-shadow: var(--shadow-xs); }
+  .env-switch:active { transform: translateY(0) scale(0.97); }
+  .env-switch .env-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--primary); flex-shrink: 0;
+    animation: live-pulse 2.2s ease-in-out infinite;
+  }
+  @keyframes live-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 45%, transparent); }
+    50% { box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary) 0%, transparent); }
+  }
+  .env-switch[data-env="test"] { border-color: color-mix(in oklch, var(--accent) 45%, transparent); background: var(--warn-tint); color: var(--accent-tint-text); }
+  .env-switch[data-env="test"] .env-dot { background: var(--accent); animation: none; }
+  .env-banner {
+    background: var(--warn-tint); color: var(--accent-tint-text); font-size: 12.5px; font-weight: 600;
+    padding: 10px 28px; border-bottom: 1px solid color-mix(in oklch, var(--accent) 20%, var(--border));
+  }
+
+  /* ---------- Role preview selector (sidebar UX demo only — see admin-mockup) ---------- */
+  .role-preview-row { padding: 0 10px 12px; }
+  .role-preview-row label { display: block; font-size: 10.5px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+  .role-preview-row select {
+    width: 100%; padding: 7px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); font-size: 12px; font-family: inherit;
+    transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease);
+  }
+  .role-preview-row select:focus { outline: none; border-color: var(--primary); box-shadow: var(--ring); }
+
+  @media (max-width: 980px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .kpi-grid, .perf-grid, .status-row, .profit-stats { grid-template-columns: 1fr 1fr; }
+    .form-row.cols-2, .detail-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body data-theme="light">
+<div class="app">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.png" alt="Uni Eats logo"></div>
+      <div>
+        <div class="brand-name">Uni Eats</div>
+        <div class="brand-sub">Admin Console</div>
+      </div>
+    </div>
+
+    <button class="nav-top-item active" data-page="dashboard" data-title="Dashboard" data-sub="Overview of orders, partners and revenue">
+      <span class="nav-icon">⌂</span><span class="nav-label">Dashboard</span>
+    </button>
+
+    <button class="nav-top-item" data-page="customers" data-title="Customers" data-sub="All registered customer accounts">
+      <span class="nav-icon">◔</span><span class="nav-label">Customers</span>
+    </button>
+
+    <!-- Orders group -->
+    <div class="nav-group" data-group="orders">
+      <button class="nav-group-header" data-toggle-group="orders">
+        <span class="nav-icon">▤</span><span class="nav-label">Orders</span><span class="nav-chevron">▸</span>
+      </button>
+      <div class="nav-sub-list"><div class="nav-sub-list-inner">
+        <button class="nav-sub-item" data-page="live-orders" data-title="Live Orders" data-sub="Orders currently in progress, by status">Live Orders</button>
+        <button class="nav-sub-item" data-page="order-history" data-title="Order History" data-sub="All completed and past orders">Order History</button>
+        <button class="nav-sub-item" data-page="disputes" data-title="Disputes &amp; Refunds" data-sub="2 open disputes need review">Disputes / Refunds</button>
+      </div></div>
+    </div>
+
+    <!-- Catalog group -->
+    <div class="nav-group" data-group="catalog">
+      <button class="nav-group-header" data-toggle-group="catalog">
+        <span class="nav-icon">▦</span><span class="nav-label">Catalog</span><span class="nav-chevron">▸</span>
+      </button>
+      <div class="nav-sub-list"><div class="nav-sub-list-inner">
+        <button class="nav-sub-item" data-page="foods" data-title="Foods" data-sub="Menu items across all restaurants">Foods</button>
+        <button class="nav-sub-item" data-page="categories" data-title="Categories" data-sub="Food categories">Categories</button>
+        <button class="nav-sub-item" data-page="cuisine" data-title="Cuisine" data-sub="Cuisine types">Cuisine</button>
+        <button class="nav-sub-item" data-page="offers" data-title="Offers" data-sub="Active and scheduled promotions">Offers</button>
+      </div></div>
+    </div>
+
+    <!-- Partners group -->
+    <div class="nav-group" data-group="partners">
+      <button class="nav-group-header" data-toggle-group="partners">
+        <span class="nav-icon">⌘</span><span class="nav-label">Partners</span>
+        <span class="nav-badge demo" id="badge-onboarding" title="Demo data — onboarding approvals aren't tracked in Firestore yet">3</span><span class="nav-chevron">▸</span>
+      </button>
+      <div class="nav-sub-list"><div class="nav-sub-list-inner">
+        <button class="nav-sub-item" data-page="restaurants" data-title="Restaurants" data-sub="All onboarded restaurants">Restaurants</button>
+        <button class="nav-sub-item" data-page="owners" data-title="Owners" data-sub="Restaurant owner accounts">Owners</button>
+        <button class="nav-sub-item" data-page="onboarding" data-title="Onboarding / Approvals" data-sub="3 restaurants awaiting approval">Onboarding / Approvals</button>
+      </div></div>
+    </div>
+
+    <!-- Fleet group -->
+    <div class="nav-group" data-group="fleet">
+      <button class="nav-group-header" data-toggle-group="fleet">
+        <span class="nav-icon">⌬</span><span class="nav-label">Fleet</span><span class="nav-chevron">▸</span>
+      </button>
+      <div class="nav-sub-list"><div class="nav-sub-list-inner">
+        <button class="nav-sub-item" data-page="delivery-boys" data-title="Delivery Boys" data-sub="All registered drivers">Delivery Boys</button>
+        <button class="nav-sub-item" data-page="delivery-onboarding" data-title="Delivery Onboarding" data-sub="4 drivers awaiting verification">Delivery Onboarding</button>
+      </div></div>
+    </div>
+
+    <!-- Finance group -->
+    <div class="nav-group" data-group="finance">
+      <button class="nav-group-header" data-toggle-group="finance">
+        <span class="nav-icon">฿</span><span class="nav-label">Finance</span>
+        <span class="nav-badge demo" id="badge-payouts" title="Demo data — payout requests aren't tracked in Firestore yet">5</span><span class="nav-chevron">▸</span>
+      </button>
+      <div class="nav-sub-list"><div class="nav-sub-list-inner">
+        <button class="nav-sub-item" data-page="payouts" data-title="Payout Requests" data-sub="5 requests pending review">Payout Requests</button>
+        <button class="nav-sub-item" data-page="commission" data-title="Commission Reports" data-sub="Platform commission breakdown">Commission Reports</button>
+        <button class="nav-sub-item" data-page="revenue" data-title="Revenue Reports" data-sub="Detailed revenue analytics">Revenue Reports</button>
+      </div></div>
+    </div>
+
+    <!-- Marketing group -->
+    <div class="nav-group" data-group="marketing">
+      <button class="nav-group-header" data-toggle-group="marketing">
+        <span class="nav-icon">◭</span><span class="nav-label">Marketing</span><span class="nav-chevron">▸</span>
+      </button>
+      <div class="nav-sub-list"><div class="nav-sub-list-inner">
+        <button class="nav-sub-item" data-page="banners" data-title="Banners" data-sub="Homepage and app banners">Banners</button>
+        <button class="nav-sub-item" data-page="documents" data-title="Documents" data-sub="Legal and compliance documents">Documents</button>
+      </div></div>
+    </div>
+
+    <!-- System group -->
+    <div class="nav-group" data-group="system">
+      <button class="nav-group-header" data-toggle-group="system">
+        <span class="nav-icon">⚙</span><span class="nav-label">System</span><span class="nav-chevron">▸</span>
+      </button>
+      <div class="nav-sub-list"><div class="nav-sub-list-inner">
+        <button class="nav-sub-item" data-page="roles" data-title="Role & Access Management" data-sub="Admin accounts, roles and test-account flags">Role & Access Management</button>
+      </div></div>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="role-preview-row">
+        <label for="role-preview-select">View sidebar as</label>
+        <select id="role-preview-select">
+          <option value="super_admin">Super Admin (full access)</option>
+          <option value="operations">Operations</option>
+          <option value="finance">Finance</option>
+          <option value="support">Support</option>
+          <option value="qa">QA / Tester</option>
+        </select>
+      </div>
+      <div class="admin-chip">
+        <div class="admin-avatar">MS</div>
+        <div>
+          <div class="admin-name">Mujii</div>
+          <div class="admin-role" id="admin-role-label">Super Admin</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="page-title" id="page-title">Dashboard</div>
+        <div class="page-sub" id="page-sub">Overview of orders, partners and revenue</div>
+      </div>
+      <div class="topbar-actions">
+        <button class="env-switch" id="env-switch" data-env="live" title="Toggle Live / Testing data">
+          <span class="env-dot"></span><span id="env-switch-label">LIVE</span>
+        </button>
+        <button class="icon-btn" id="theme-toggle" title="Toggle dark mode">☾</button>
+        <button class="icon-btn" title="Notifications">🔔</button>
+      </div>
+    </div>
+    <div class="env-banner" id="env-banner" style="display:none;">
+      🧪 You're viewing <strong>Testing</strong> data — isolated from live orders, customers and payouts. Anything you do here is safe to break.
+    </div>
+    <div class="env-banner" id="demo-banner" style="display:none; background:#fff3cd; color:#7a5b00; border-bottom:1px solid #f0d98a;">
+      🧪 This page shows prototype/demo data — it isn't connected to the live database yet.
+    </div>
+
+    <div class="content" id="content">
+      <!-- ============ DASHBOARD PAGE ============ -->
+      <div id="page-dashboard">
+
+        <!-- 1. Action bar -->
+        <section class="block">
+          <div class="section-head"><h2>Needs your attention</h2></div>
+          <div class="action-row">
+            <button class="chip tone-warn" data-page="onboarding" data-toast="Opening Onboarding / Approvals">⏳ <span id="chip-onboarding-count">3</span> Restaurant Approvals Pending</button>
+            <button class="chip tone-warn" data-page="payouts" data-toast="Opening Payout Requests">฿ <span id="chip-payouts-count">5</span> Payout Requests</button>
+            <button class="chip tone-danger" data-page="disputes" data-toast="Opening Disputes / Refunds">⚠ <span id="chip-disputes-count">2</span> Open Disputes</button>
+            <button class="chip tone-warn" data-page="delivery-onboarding" data-toast="Opening Delivery Onboarding">🛵 <span id="chip-driveronboarding-count">4</span> Drivers Awaiting Verification</button>
+          </div>
+        </section>
+
+        <!-- 2. KPI strip -->
+        <section class="block">
+          <div class="kpi-grid">
+            <div class="kpi-card primary" data-page="revenue" data-toast="Opening Revenue report">
+              <div class="kpi-icon">฿</div>
+              <div class="kpi-label">Total Revenue</div>
+              <div class="kpi-value" id="kpi-revenue">—</div>
+              <div class="kpi-foot"><span class="kpi-vs">from delivered/picked-up orders</span></div>
+            </div>
+            <div class="kpi-card" data-page="order-history" data-toast="Opening Order History">
+              <div class="kpi-icon">▤</div>
+              <div class="kpi-label">Total Orders</div>
+              <div class="kpi-value" id="kpi-orders">—</div>
+              <div class="kpi-foot"><span class="kpi-vs">all-time</span></div>
+            </div>
+            <div class="kpi-card" data-page="customers" data-toast="Opening Customers list">
+              <div class="kpi-icon">◔</div>
+              <div class="kpi-label">Total Customers</div>
+              <div class="kpi-value" id="kpi-customers">—</div>
+              <div class="kpi-foot"><span class="kpi-vs">registered accounts</span></div>
+            </div>
+            <div class="kpi-card" data-page="delivery-boys" data-toast="Opening Delivery Boys list">
+              <div class="kpi-icon">🛵</div>
+              <div class="kpi-label">Total Drivers</div>
+              <div class="kpi-value" id="kpi-drivers">—</div>
+              <div class="kpi-foot"><span class="kpi-vs">registered drivers</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. Profit overview -->
+        <section class="block">
+          <div class="section-head">
+            <h2>Profit Overview</h2>
+            <span class="trend-pill" style="background:var(--surface-2); color:var(--muted);" title="No commission-rate model exists yet, so this can't be computed from real data.">Demo data — no commission model yet</span>
+          </div>
+          <div class="profit-stats">
+            <div class="stat-card"><div class="stat-label">This Month</div><div class="stat-value">QAR 2,585.20</div></div>
+            <div class="stat-card"><div class="stat-label">Last Month</div><div class="stat-value">QAR 3,103.00</div></div>
+            <div class="stat-card commission"><div class="stat-label">Total Commission</div><div class="stat-value">QAR 568.82</div></div>
+            <div class="stat-card commission"><div class="stat-label">Commission This Month</div><div class="stat-value">QAR 258.52</div></div>
+            <div class="stat-card commission"><div class="stat-label">Commission Last Month</div><div class="stat-value">QAR 310.30</div></div>
+          </div>
+          <div class="chart-card">
+            <div class="bar-chart">
+              <div class="bar-col">
+                <div class="bar-wrap"><div class="bar last" style="height:84%"><span class="bar-value">3,103.0</span></div></div>
+                <div class="bar-col-label">Last Month</div>
+              </div>
+              <div class="bar-col">
+                <div class="bar-wrap"><div class="bar this" style="height:70%"><span class="bar-value">2,585.2</span></div></div>
+                <div class="bar-col-label">This Month</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. Live Orders snapshot -->
+        <section class="block">
+          <div class="section-head"><h2>Live Orders Snapshot</h2><span class="live-pill">Live</span></div>
+          <div class="status-row">
+            <button class="status-pill" style="--dot: var(--warn)" data-page="live-orders" data-toast="Filtering Live Orders → Pending">
+              <div><div class="status-count" id="snap-pending">—</div><div class="status-name">Pending</div></div>
+            </button>
+            <button class="status-pill" style="--dot: var(--primary)" data-page="live-orders" data-toast="Filtering Live Orders → Preparing">
+              <div><div class="status-count" id="snap-preparing">—</div><div class="status-name">Preparing</div></div>
+            </button>
+            <button class="status-pill" style="--dot: var(--accent)" data-page="live-orders" data-toast="Filtering Live Orders → Out for Delivery">
+              <div><div class="status-count" id="snap-out">—</div><div class="status-name">Out for Delivery</div></div>
+            </button>
+            <button class="status-pill" style="--dot: var(--primary-strong)" data-page="order-history" data-toast="Filtering Order History → Delivered">
+              <div><div class="status-count" id="snap-delivered">—</div><div class="status-name">Delivered</div></div>
+            </button>
+            <button class="status-pill" style="--dot: var(--danger)" data-page="order-history" data-toast="Filtering Order History → Cancelled">
+              <div><div class="status-count" id="snap-cancelled">—</div><div class="status-name">Cancelled</div></div>
+            </button>
+          </div>
+        </section>
+
+        <!-- 5. Top performers -->
+        <section class="block">
+          <div class="section-head"><h2>Top Performers</h2></div>
+          <div class="perf-grid">
+            <div class="chart-card">
+              <div class="kpi-label" style="margin-bottom:2px;">Top 5 Items</div>
+              <div class="item-bars" id="top-items-list">
+                <div class="item-bar-row"><span class="item-bar-name">Loading…</span></div>
+              </div>
+            </div>
+
+            <div class="chart-card">
+              <div class="kpi-label" style="margin-bottom:10px;">Top 5 Restaurants</div>
+              <div class="item-bars" id="top-restaurants-list">
+                <div class="item-bar-row"><span class="item-bar-name">Loading…</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. Recent activity -->
+        <section class="block">
+          <div class="section-head"><h2>Recent Activity</h2><span class="live-pill">Live</span></div>
+          <div class="activity-list" id="recent-activity-list">
+            <button class="activity-row"><div class="activity-main"><div class="activity-title">Loading…</div></div></button>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- ============ DYNAMIC RESOURCE PAGE ============ -->
+      <div id="page-resource" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toast-stack"></div>
+<div id="modal-root"></div>
+
+<script>
+  // ====================================================================
+  // THEME + SIDEBAR
+  // ====================================================================
+  const themeBtn = document.getElementById('theme-toggle');
+  themeBtn.addEventListener('click', () => {
+    const body = document.body;
+    const isDark = body.getAttribute('data-theme') === 'dark';
+    body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    themeBtn.textContent = isDark ? '☾' : '☀';
+  });
+
+  document.querySelectorAll('[data-toggle-group]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.closest('.nav-group').classList.toggle('open');
+    });
+  });
+  document.querySelector('[data-group="partners"]').classList.add('open');
+  document.querySelector('[data-group="finance"]').classList.add('open');
+
+  // ====================================================================
+  // TOASTS
+  // ====================================================================
+  const toastStack = document.getElementById('toast-stack');
+  function showToast(message) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.innerHTML = '<span class="toast-dot"></span><span></span>';
+    el.querySelector('span:last-child').textContent = message;
+    toastStack.appendChild(el);
+    setTimeout(() => {
+      el.classList.add('leaving');
+      setTimeout(() => el.remove(), 280);
+    }, 2400);
+  }
+
+  // ====================================================================
+  // MODAL SYSTEM
+  // ====================================================================
+  const modalRoot = document.getElementById('modal-root');
+  function closeModal() { modalRoot.innerHTML = ''; }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function showModal({ title, bodyHtml, confirmLabel, cancelLabel, danger, onConfirm, hideConfirm }) {
+    modalRoot.innerHTML = `
+      <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-box">
+          <div class="modal-head"><h3>${escapeHtml(title)}</h3><button class="modal-close" id="modal-x">✕</button></div>
+          <div class="modal-body">${bodyHtml}</div>
+          <div class="modal-foot">
+            <button class="btn btn-outline" id="modal-cancel">${cancelLabel || 'Cancel'}</button>
+            ${hideConfirm ? '' : `<button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" id="modal-confirm">${confirmLabel || 'Confirm'}</button>`}
+          </div>
+        </div>
+      </div>`;
+    const overlay = document.getElementById('modal-overlay');
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+    document.getElementById('modal-x').addEventListener('click', closeModal);
+    document.getElementById('modal-cancel').addEventListener('click', closeModal);
+    if (!hideConfirm) {
+      document.getElementById('modal-confirm').addEventListener('click', () => {
+        const result = onConfirm ? onConfirm() : true;
+        if (result !== false) closeModal();
+      });
+    }
+    return overlay;
+  }
+  function confirmAction(message, onConfirm, opts = {}) {
+    showModal({
+      title: opts.title || 'Are you sure?',
+      bodyHtml: `<p>${message}</p>`,
+      confirmLabel: opts.confirmLabel || 'Confirm',
+      danger: opts.danger,
+      onConfirm
+    });
+  }
+
+  // ====================================================================
+  // MOCK DATABASE
+  // ====================================================================
+  let seq = 1000;
+  const genId = (prefix) => `${prefix}-${seq++}`;
+  const money = (n) => 'QAR ' + Number(n).toFixed(2);
+
+  const DB = {
+    customers: [
+      { id: 'CU-101', name: 'Ahmed K.', email: 'ahmed.k@udst.edu.qa', phone: '+974 5511 2233', university: 'UDST', orders: 14, spend: 612.50, joined: '2025-09-02', status: 'active' },
+      { id: 'CU-102', name: 'Layla M.', email: 'layla.m@udst.edu.qa', phone: '+974 5522 3344', university: 'UDST', orders: 9, spend: 341.00, joined: '2025-09-10', status: 'active' },
+      { id: 'CU-103', name: 'Omar S.', email: 'omar.s@udst.edu.qa', phone: '+974 5533 4455', university: 'UDST', orders: 21, spend: 894.25, joined: '2025-08-21', status: 'active' },
+      { id: 'CU-104', name: 'Fatima A.', email: 'fatima.a@udst.edu.qa', phone: '+974 5544 5566', university: 'UDST', orders: 5, spend: 152.00, joined: '2025-10-04', status: 'active' },
+      { id: 'CU-105', name: 'Hassan R.', email: 'hassan.r@udst.edu.qa', phone: '+974 5555 6677', university: 'UDST', orders: 2, spend: 48.50, joined: '2025-11-15', status: 'blocked' },
+      { id: 'CU-106', name: 'Maryam T.', email: 'maryam.t@udst.edu.qa', phone: '+974 5566 7788', university: 'UDST', orders: 17, spend: 705.75, joined: '2025-07-30', status: 'active' },
+      { id: 'CU-107', name: 'Khalid N.', email: 'khalid.n@udst.edu.qa', phone: '+974 5577 8899', university: 'UDST', orders: 8, spend: 296.00, joined: '2025-09-22', status: 'active' },
+      { id: 'CU-108', name: 'Noora F.', email: 'noora.f@udst.edu.qa', phone: '+974 5588 9900', university: 'UDST', orders: 11, spend: 402.30, joined: '2025-10-18', status: 'active' },
+      { id: 'CU-109', name: 'Yusuf R.', email: 'yusuf.r@udst.edu.qa', phone: '+974 5599 0011', university: 'UDST', orders: 3, spend: 88.00, joined: '2025-11-02', status: 'active' },
+      { id: 'CU-110', name: 'Sara B.', email: 'sara.b@udst.edu.qa', phone: '+974 5500 1122', university: 'UDST', orders: 0, spend: 0, joined: '2026-06-01', status: 'active' },
+      { id: 'CU-111', name: 'Ali H.', email: 'ali.h@udst.edu.qa', phone: '+974 5611 2233', university: 'UDST', orders: 6, spend: 210.40, joined: '2025-12-09', status: 'active' },
+      { id: 'CU-112', name: 'Dana W.', email: 'dana.w@udst.edu.qa', phone: '+974 5622 3344', university: 'UDST', orders: 1, spend: 24.00, joined: '2026-01-12', status: 'blocked' }
+    ],
+    liveOrders: [
+      { id: '#1051', customer: 'Ahmed K.', restaurant: 'Burger Barn', items: 3, total: 64.00, status: 'pending', placed: '2 m ago' },
+      { id: '#1050', customer: 'Layla M.', restaurant: 'Spice House', items: 2, total: 28.50, status: 'pending', placed: '4 m ago' },
+      { id: '#1049', customer: 'Omar S.', restaurant: 'Pizza Palace', items: 1, total: 45.00, status: 'preparing', placed: '9 m ago' },
+      { id: '#1048', customer: 'Fatima A.', restaurant: 'Wrap Works', items: 4, total: 52.75, status: 'preparing', placed: '12 m ago' },
+      { id: '#1047', customer: 'Hassan R.', restaurant: 'Sushi Stop', items: 2, total: 71.20, status: 'out', placed: '15 m ago' },
+      { id: '#1046', customer: 'Maryam T.', restaurant: 'Burger Barn', items: 1, total: 22.00, status: 'pending', placed: '17 m ago' },
+      { id: '#1045', customer: 'Khalid N.', restaurant: 'Curry Corner', items: 3, total: 58.40, status: 'out', placed: '19 m ago' },
+      { id: '#1044', customer: 'Noora F.', restaurant: 'Spice House', items: 2, total: 33.10, status: 'preparing', placed: '22 m ago' },
+      { id: '#1043', customer: 'Yusuf R.', restaurant: 'Taco Town', items: 1, total: 18.00, status: 'pending', placed: '25 m ago' },
+      { id: '#1042', customer: 'Ahmed K.', restaurant: 'Burger Barn', items: 2, total: 64.00, status: 'out', placed: '27 m ago' },
+      { id: '#1041', customer: 'Layla M.', restaurant: 'Spice House', items: 1, total: 28.50, status: 'pending', placed: '31 m ago' },
+      { id: '#1040', customer: 'Omar S.', restaurant: 'Pizza Palace', items: 3, total: 91.20, status: 'preparing', placed: '34 m ago' }
+    ],
+    orderHistory: [
+      { id: '#1039', customer: 'Sara B.', restaurant: 'Burger Barn', total: 38.00, date: '2026-06-15', status: 'delivered' },
+      { id: '#1038', customer: 'Ali H.', restaurant: 'Pizza Palace', total: 28.00, date: '2026-06-15', status: 'delivered' },
+      { id: '#1037', customer: 'Dana W.', restaurant: 'Wrap Works', total: 24.00, date: '2026-06-14', status: 'cancelled' },
+      { id: '#1036', customer: 'Khalid N.', restaurant: 'Spice House', total: 33.50, date: '2026-06-14', status: 'delivered' },
+      { id: '#1035', customer: 'Maryam T.', restaurant: 'Burger Barn', total: 34.50, date: '2026-06-14', status: 'delivered' },
+      { id: '#1034', customer: 'Noora F.', restaurant: 'Curry Corner', total: 41.20, date: '2026-06-13', status: 'delivered' },
+      { id: '#1033', customer: 'Hassan R.', restaurant: 'Sushi Stop', total: 55.00, date: '2026-06-13', status: 'cancelled' },
+      { id: '#1032', customer: 'Fatima A.', restaurant: 'Taco Town', total: 19.50, date: '2026-06-12', status: 'delivered' },
+      { id: '#1031', customer: 'Omar S.', restaurant: 'Pizza Palace', total: 62.00, date: '2026-06-12', status: 'delivered' },
+      { id: '#1030', customer: 'Ahmed K.', restaurant: 'Burger Barn', total: 64.00, date: '2026-06-11', status: 'delivered' },
+      { id: '#1029', customer: 'Noora F.', restaurant: 'Spice House', total: 22.00, date: '2026-06-11', status: 'delivered' },
+      { id: '#1021', customer: 'Khalid N.', restaurant: 'Wrap Works', total: 19.50, date: '2026-06-08', status: 'cancelled' }
+    ],
+    disputes: [
+      { id: 'DP-01', order: '#1038', customer: 'Ali H.', restaurant: 'Pizza Palace', reason: 'Missing items', amount: 28.00, status: 'open' },
+      { id: 'DP-02', order: '#1035', customer: 'Maryam T.', restaurant: 'Burger Barn', reason: 'Order arrived late & cold', amount: 34.50, status: 'open' },
+      { id: 'DP-03', order: '#1029', customer: 'Noora F.', restaurant: 'Spice House', reason: 'Wrong item delivered', amount: 22.00, status: 'resolved' },
+      { id: 'DP-04', order: '#1021', customer: 'Khalid N.', restaurant: 'Wrap Works', reason: 'Refund requested — quality', amount: 19.50, status: 'rejected' }
+    ],
+    foods: [
+      { id: 'FD-01', name: 'Zinger Burger', restaurant: 'Burger Barn', category: 'Burgers', cuisine: 'American', price: 18.00, status: 'active' },
+      { id: 'FD-02', name: 'Cheese Smash Burger', restaurant: 'Burger Barn', category: 'Burgers', cuisine: 'American', price: 21.00, status: 'active' },
+      { id: 'FD-03', name: 'Chicken Shawarma', restaurant: 'Wrap Works', category: 'Wraps', cuisine: 'Middle Eastern', price: 14.00, status: 'active' },
+      { id: 'FD-04', name: 'Beef Shawarma Wrap', restaurant: 'Wrap Works', category: 'Wraps', cuisine: 'Middle Eastern', price: 15.50, status: 'active' },
+      { id: 'FD-05', name: 'Beef Pizza', restaurant: 'Pizza Palace', category: 'Pizza', cuisine: 'Italian', price: 38.00, status: 'active' },
+      { id: 'FD-06', name: 'Margherita Pizza', restaurant: 'Pizza Palace', category: 'Pizza', cuisine: 'Italian', price: 32.00, status: 'active' },
+      { id: 'FD-07', name: 'Veggie Wrap', restaurant: 'Wrap Works', category: 'Wraps', cuisine: 'Middle Eastern', price: 12.00, status: 'active' },
+      { id: 'FD-08', name: 'Mango Lassi', restaurant: 'Spice House', category: 'Beverages', cuisine: 'Indian', price: 9.00, status: 'active' },
+      { id: 'FD-09', name: 'Butter Chicken', restaurant: 'Spice House', category: 'Curries', cuisine: 'Indian', price: 29.00, status: 'active' },
+      { id: 'FD-10', name: 'Paneer Tikka', restaurant: 'Curry Corner', category: 'Curries', cuisine: 'Indian', price: 24.00, status: 'active' },
+      { id: 'FD-11', name: 'California Roll', restaurant: 'Sushi Stop', category: 'Sushi', cuisine: 'Asian', price: 35.00, status: 'active' },
+      { id: 'FD-12', name: 'Spicy Tuna Roll', restaurant: 'Sushi Stop', category: 'Sushi', cuisine: 'Asian', price: 40.00, status: 'inactive' },
+      { id: 'FD-13', name: 'Beef Tacos (3pc)', restaurant: 'Taco Town', category: 'Tacos', cuisine: 'Mexican', price: 22.00, status: 'active' },
+      { id: 'FD-14', name: 'Churros', restaurant: 'Taco Town', category: 'Desserts', cuisine: 'Mexican', price: 11.00, status: 'active' }
+    ],
+    categories: [
+      { id: 'CT-01', name: 'Burgers', foods: 2, status: 'active' },
+      { id: 'CT-02', name: 'Wraps', foods: 3, status: 'active' },
+      { id: 'CT-03', name: 'Pizza', foods: 2, status: 'active' },
+      { id: 'CT-04', name: 'Curries', foods: 2, status: 'active' },
+      { id: 'CT-05', name: 'Sushi', foods: 2, status: 'active' },
+      { id: 'CT-06', name: 'Desserts', foods: 1, status: 'active' }
+    ],
+    cuisines: [
+      { id: 'CSN-01', name: 'American', restaurants: 2, status: 'active' },
+      { id: 'CSN-02', name: 'Middle Eastern', restaurants: 1, status: 'active' },
+      { id: 'CSN-03', name: 'Italian', restaurants: 1, status: 'active' },
+      { id: 'CSN-04', name: 'Indian', restaurants: 2, status: 'active' },
+      { id: 'CSN-05', name: 'Asian', restaurants: 1, status: 'active' },
+      { id: 'CSN-06', name: 'Mexican', restaurants: 1, status: 'active' }
+    ],
+    offers: [
+      { id: 'OF-01', title: 'Welcome10', code: 'WELCOME10', discount: '10% off', scope: 'All Restaurants', expires: '2026-07-01', status: 'active' },
+      { id: 'OF-02', title: 'Burger Barn Combo Deal', code: 'BBCOMBO', discount: 'QAR 5 off', scope: 'Burger Barn', expires: '2026-06-30', status: 'active' },
+      { id: 'OF-03', title: 'Free Delivery Friday', code: 'FREEFRI', discount: 'Free delivery', scope: 'All Restaurants', expires: '2026-06-20', status: 'scheduled' },
+      { id: 'OF-04', title: 'Spice House Lunch Special', code: 'SPICELUNCH', discount: '15% off', scope: 'Spice House', expires: '2026-06-25', status: 'active' },
+      { id: 'OF-05', title: 'Ramadan Promo', code: 'RAMADAN25', discount: '20% off', scope: 'All Restaurants', expires: '2026-03-30', status: 'expired' },
+      { id: 'OF-06', title: 'New User Bonus', code: 'NEWBIE', discount: 'QAR 10 off first order', scope: 'All Restaurants', expires: '2026-12-31', status: 'active' }
+    ],
+    restaurants: [
+      { id: 'RS-01', name: 'Burger Barn', owner: 'Mohammed Al-Sayed', cuisine: 'American', orders: 61, rating: 4.6, status: 'active' },
+      { id: 'RS-02', name: 'Spice House', owner: 'Aisha Khan', cuisine: 'Indian', orders: 17, rating: 4.4, status: 'active' },
+      { id: 'RS-03', name: 'Pizza Palace', owner: 'Marco Rossi', cuisine: 'Italian', orders: 13, rating: 4.2, status: 'active' },
+      { id: 'RS-04', name: 'Wrap Works', owner: 'Sara Haddad', cuisine: 'Middle Eastern', orders: 12, rating: 4.5, status: 'active' },
+      { id: 'RS-05', name: 'Sushi Stop', owner: 'Kenji Watanabe', cuisine: 'Asian', orders: 9, rating: 4.7, status: 'active' },
+      { id: 'RS-06', name: 'Taco Town', owner: 'Diego Martinez', cuisine: 'Mexican', orders: 6, rating: 4.0, status: 'suspended' },
+      { id: 'RS-07', name: 'Curry Corner', owner: 'Aisha Khan', cuisine: 'Indian', orders: 4, rating: 4.1, status: 'active' },
+      { id: 'RS-08', name: 'Grill House', owner: 'Mohammed Al-Sayed', cuisine: 'American', orders: 0, rating: 0, status: 'active' }
+    ],
+    owners: [
+      { id: 'OW-01', name: 'Mohammed Al-Sayed', email: 'm.sayed@partners.unieats.qa', phone: '+974 4011 2233', restaurants: 2, status: 'active' },
+      { id: 'OW-02', name: 'Aisha Khan', email: 'a.khan@partners.unieats.qa', phone: '+974 4022 3344', restaurants: 2, status: 'active' },
+      { id: 'OW-03', name: 'Marco Rossi', email: 'm.rossi@partners.unieats.qa', phone: '+974 4033 4455', restaurants: 1, status: 'active' },
+      { id: 'OW-04', name: 'Sara Haddad', email: 's.haddad@partners.unieats.qa', phone: '+974 4044 5566', restaurants: 1, status: 'active' },
+      { id: 'OW-05', name: 'Kenji Watanabe', email: 'k.watanabe@partners.unieats.qa', phone: '+974 4055 6677', restaurants: 1, status: 'active' },
+      { id: 'OW-06', name: 'Diego Martinez', email: 'd.martinez@partners.unieats.qa', phone: '+974 4066 7788', restaurants: 1, status: 'suspended' }
+    ],
+    onboarding: [
+      { id: 'ON-01', name: 'Noodle Nest', owner: 'Li Wei', cuisine: 'Asian', submitted: '2026-06-14', docs: 'Complete', status: 'pending' },
+      { id: 'ON-02', name: 'Tasty Bowl', owner: 'Priya Nair', cuisine: 'Indian', submitted: '2026-06-13', docs: 'Complete', status: 'pending' },
+      { id: 'ON-03', name: 'Falafel Express', owner: 'Rami Nassar', cuisine: 'Middle Eastern', submitted: '2026-06-12', docs: 'Missing trade license', status: 'pending' }
+    ],
+    deliveryBoys: [
+      { id: 'DB-01', name: 'Yusuf R.', phone: '+974 6611 2233', vehicle: 'Scooter', deliveries: 212, rating: 4.8, status: 'active' },
+      { id: 'DB-02', name: 'Karim S.', phone: '+974 6622 3344', vehicle: 'Bicycle', deliveries: 156, rating: 4.6, status: 'active' },
+      { id: 'DB-03', name: 'Tariq M.', phone: '+974 6633 4455', vehicle: 'Scooter', deliveries: 198, rating: 4.7, status: 'active' },
+      { id: 'DB-04', name: 'Bilal A.', phone: '+974 6644 5566', vehicle: 'Car', deliveries: 89, rating: 4.3, status: 'active' },
+      { id: 'DB-05', name: 'Hamza Q.', phone: '+974 6655 6677', vehicle: 'Scooter', deliveries: 134, rating: 4.5, status: 'active' },
+      { id: 'DB-06', name: 'Adam J.', phone: '+974 6666 7788', vehicle: 'Bicycle', deliveries: 67, rating: 4.2, status: 'suspended' },
+      { id: 'DB-07', name: 'Nasser F.', phone: '+974 6677 8899', vehicle: 'Scooter', deliveries: 177, rating: 4.6, status: 'active' },
+      { id: 'DB-08', name: 'Saif K.', phone: '+974 6688 9900', vehicle: 'Car', deliveries: 45, rating: 4.1, status: 'active' },
+      { id: 'DB-09', name: 'Waleed H.', phone: '+974 6699 0011', vehicle: 'Scooter', deliveries: 120, rating: 4.4, status: 'active' },
+      { id: 'DB-10', name: 'Ibrahim D.', phone: '+974 6600 1122', vehicle: 'Bicycle', deliveries: 33, rating: 4.0, status: 'active' }
+    ],
+    deliveryOnboarding: [
+      { id: 'DO-01', name: 'Yousef T.', phone: '+974 6711 2233', vehicle: 'Scooter', submitted: '2026-06-15', docs: 'Complete', status: 'pending' },
+      { id: 'DO-02', name: 'Rashid B.', phone: '+974 6722 3344', vehicle: 'Bicycle', submitted: '2026-06-14', docs: 'Complete', status: 'pending' },
+      { id: 'DO-03', name: 'Faisal G.', phone: '+974 6733 4455', vehicle: 'Car', submitted: '2026-06-13', docs: 'Missing license', status: 'pending' },
+      { id: 'DO-04', name: 'Majid E.', phone: '+974 6744 5566', vehicle: 'Scooter', submitted: '2026-06-12', docs: 'Complete', status: 'pending' }
+    ],
+    payouts: [
+      { id: 'PO-01', recipient: 'Burger Barn', type: 'Restaurant', amount: 842.50, requested: '2026-06-13', status: 'pending' },
+      { id: 'PO-02', recipient: 'Spice House', type: 'Restaurant', amount: 310.00, requested: '2026-06-13', status: 'pending' },
+      { id: 'PO-03', recipient: 'Yusuf R.', type: 'Driver', amount: 96.20, requested: '2026-06-14', status: 'pending' },
+      { id: 'PO-04', recipient: 'Karim S.', type: 'Driver', amount: 74.80, requested: '2026-06-14', status: 'pending' },
+      { id: 'PO-05', recipient: 'Wrap Works', type: 'Restaurant', amount: 215.30, requested: '2026-06-15', status: 'pending' }
+    ],
+    commission: [
+      { restaurant: 'Burger Barn', orders: 61, gross: 1860.40, rate: '10%', commission: 186.04 },
+      { restaurant: 'Spice House', orders: 17, gross: 512.30, rate: '10%', commission: 51.23 },
+      { restaurant: 'Pizza Palace', orders: 13, gross: 430.00, rate: '12%', commission: 51.60 },
+      { restaurant: 'Wrap Works', orders: 12, gross: 298.50, rate: '10%', commission: 29.85 },
+      { restaurant: 'Sushi Stop', orders: 9, gross: 340.00, rate: '12%', commission: 40.80 },
+      { restaurant: 'Taco Town', orders: 6, gross: 132.00, rate: '10%', commission: 13.20 },
+      { restaurant: 'Curry Corner', orders: 4, gross: 96.80, rate: '10%', commission: 9.68 },
+      { restaurant: 'Grill House', orders: 0, gross: 0, rate: '10%', commission: 0 }
+    ],
+    revenue: [
+      { date: '2026-06-09', orders: 32, revenue: 712.40, commission: 71.24 },
+      { date: '2026-06-10', orders: 29, revenue: 655.10, commission: 65.51 },
+      { date: '2026-06-11', orders: 35, revenue: 801.20, commission: 80.12 },
+      { date: '2026-06-12', orders: 30, revenue: 698.00, commission: 69.80 },
+      { date: '2026-06-13', orders: 37, revenue: 842.60, commission: 84.26 },
+      { date: '2026-06-14', orders: 41, revenue: 912.30, commission: 91.23 },
+      { date: '2026-06-15', orders: 38, revenue: 866.50, commission: 86.65 }
+    ],
+    banners: [
+      { id: 'BN-01', title: 'Ramadan Mega Offers', subtitle: 'Up to 20% off all restaurants', link: '/offers/ramadan', position: 'Home Top', status: 'active' },
+      { id: 'BN-02', title: 'Free Delivery Fridays', subtitle: 'No delivery fee every Friday', link: '/offers/freefri', position: 'Home Carousel', status: 'active' },
+      { id: 'BN-03', title: 'New: Sushi Stop on campus', subtitle: 'Order fresh sushi now', link: '/restaurant/sushi-stop', position: 'Home Carousel', status: 'scheduled' },
+      { id: 'BN-04', title: 'Exam Week Fuel-Up', subtitle: 'Late night menu now available', link: '/collections/late-night', position: 'Home Bottom', status: 'draft' }
+    ],
+    documents: [
+      { id: 'DC-01', name: 'Trade License — Burger Barn', owner: 'Mohammed Al-Sayed', type: 'Trade License', uploaded: '2025-08-01', status: 'verified' },
+      { id: 'DC-02', name: 'Food Safety Cert — Spice House', owner: 'Aisha Khan', type: 'Food Safety', uploaded: '2025-08-05', status: 'verified' },
+      { id: 'DC-03', name: 'Trade License — Pizza Palace', owner: 'Marco Rossi', type: 'Trade License', uploaded: '2025-09-12', status: 'verified' },
+      { id: 'DC-04', name: 'Trade License — Noodle Nest', owner: 'Li Wei', type: 'Trade License', uploaded: '2026-06-14', status: 'pending' },
+      { id: 'DC-05', name: 'ID Verification — Yousef T.', owner: 'Yousef T.', type: 'Driver ID', uploaded: '2026-06-15', status: 'pending' },
+      { id: 'DC-06', name: 'Food Safety Cert — Taco Town', owner: 'Diego Martinez', type: 'Food Safety', uploaded: '2025-10-20', status: 'expired' }
+    ],
+    admins: [
+      { id: 'AD-01', name: 'Mujii', email: 'info@theunieats.com', role: 'super_admin', testAccount: 'no', status: 'active' },
+      { id: 'AD-02', name: 'Sara Al-Mansoori', email: 'sara.ops@unieats.qa', role: 'operations', testAccount: 'no', status: 'active' },
+      { id: 'AD-03', name: 'Yousef Khan', email: 'yousef.finance@unieats.qa', role: 'finance', testAccount: 'no', status: 'active' },
+      { id: 'AD-04', name: 'Maya Haddad', email: 'maya.support@unieats.qa', role: 'support', testAccount: 'no', status: 'active' },
+      { id: 'AD-05', name: 'QA Runner 01', email: 'qa01@unieats.qa', role: 'qa', testAccount: 'yes', status: 'active' },
+      { id: 'AD-06', name: 'Tariq Saeed', email: 'tariq.old@unieats.qa', role: 'operations', testAccount: 'no', status: 'suspended' }
+    ]
+  };
+
+  // Mirrors AdminRole.allowedModules in the Flutter rebuild's models/admin_role.dart —
+  // keep these two in sync if either changes.
+  const ROLE_PERMISSIONS = {
+    super_admin: ['*'],
+    operations: ['dashboard', 'customers', 'live-orders', 'order-history', 'disputes',
+      'foods', 'categories', 'cuisine', 'offers', 'restaurants', 'owners', 'onboarding',
+      'delivery-boys', 'delivery-onboarding'],
+    finance: ['dashboard', 'payouts', 'commission', 'revenue'],
+    support: ['dashboard', 'customers', 'live-orders', 'order-history', 'disputes'],
+    qa: ['*']
+  };
+  const ROLE_LABEL = {
+    super_admin: 'Super Admin', operations: 'Operations', finance: 'Finance',
+    support: 'Support', qa: 'QA / Tester'
+  };
+
+  // ====================================================================
+  // BADGE TONE MAPPING
+  // ====================================================================
+  const BADGE_TONE = {
+    active: 'success', delivered: 'success', approved: 'success', resolved: 'success',
+    verified: 'success', paid: 'success',
+    pending: 'warn', preparing: 'warn', out: 'warn', scheduled: 'warn', draft: 'neutral',
+    suspended: 'danger', cancelled: 'danger', rejected: 'danger', blocked: 'danger', expired: 'danger',
+    open: 'danger', inactive: 'neutral'
+  };
+  const STATUS_LABEL = { out: 'Out for delivery' };
+  function badgeHtml(status) {
+    const tone = BADGE_TONE[status] || 'neutral';
+    const label = STATUS_LABEL[status] || status;
+    return `<span class="badge ${tone}">${escapeHtml(label)}</span>`;
+  }
+
+  // ====================================================================
+  // GENERIC RESOURCE TABLE ENGINE
+  // ====================================================================
+  const pageState = {}; // key -> { q: '', filter: '' }
+  let currentPageKey = 'dashboard';
+
+  function fieldHtml(f, item) {
+    const val = item ? (item[f.name] ?? '') : (f.default ?? '');
+    if (f.type === 'select') {
+      const opts = f.options.map(o => `<option value="${escapeHtml(o)}" ${o === val ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('');
+      return `<div class="form-row"><label>${f.label}</label><select name="${f.name}">${opts}</select></div>`;
+    }
+    if (f.type === 'textarea') {
+      return `<div class="form-row"><label>${f.label}</label><textarea name="${f.name}">${escapeHtml(val)}</textarea></div>`;
+    }
+    return `<div class="form-row"><label>${f.label}</label><input type="${f.type || 'text'}" name="${f.name}" value="${escapeHtml(val)}" ${f.step ? `step="${f.step}"` : ''}></div>`;
+  }
+
+  function openFormModal(cfg, item) {
+    const formHtml = `<form id="resource-form" class="form-grid">${cfg.fields.map(f => fieldHtml(f, item)).join('')}</form>`;
+    showModal({
+      title: (item ? 'Edit ' : 'Add ') + cfg.singular,
+      bodyHtml: formHtml,
+      confirmLabel: item ? 'Save Changes' : 'Add ' + cfg.singular,
+      onConfirm: () => {
+        const form = document.getElementById('resource-form');
+        const data = {};
+        cfg.fields.forEach(f => {
+          const el = form.elements[f.name];
+          data[f.name] = f.type === 'number' ? Number(el.value || 0) : el.value;
+        });
+        if (item) {
+          Object.assign(item, data);
+          showToast(`${cfg.singular} "${data[cfg.fields[0].name]}" updated.`);
+        } else {
+          const newItem = Object.assign({ id: genId(cfg.idPrefix) }, cfg.defaults ? cfg.defaults() : {}, data);
+          cfg.rows.unshift(newItem);
+          showToast(`${cfg.singular} "${data[cfg.fields[0].name]}" added.`);
+        }
+        renderResourcePage(cfg.key);
+      }
+    });
+  }
+
+  function openDetailModal(cfg, item) {
+    const rows = cfg.detailFields || cfg.columns.map(c => ({ name: c.key, label: c.label }));
+    const body = `<div class="detail-grid">${rows.map(f => `
+      <div class="detail-item"><div class="d-label">${f.label}</div><div class="d-value">${
+        f.name === cfg.statusField ? badgeHtml(item[f.name]) : escapeHtml(item[f.name] ?? '—')
+      }</div></div>`).join('')}</div>`;
+    showModal({ title: `${cfg.singular} ${item.id || ''}`, bodyHtml: body, hideConfirm: true, cancelLabel: 'Close' });
+  }
+
+  function matchesSearch(row, q) {
+    if (!q) return true;
+    q = q.toLowerCase();
+    return Object.values(row).some(v => String(v).toLowerCase().includes(q));
+  }
+
+  function renderToolbar(cfg, state) {
+    const statusOptions = cfg.statusField ? [...new Set(cfg.rows.map(r => r[cfg.statusField]))] : [];
+    return `
+      <div class="toolbar">
+        <input type="text" class="search-input" id="tb-search" placeholder="Search ${cfg.plural.toLowerCase()}…" value="${escapeHtml(state.q)}">
+        ${statusOptions.length ? `<select id="tb-filter">
+            <option value="">All statuses</option>
+            ${statusOptions.map(s => `<option value="${s}" ${state.filter === s ? 'selected' : ''}>${STATUS_LABEL[s] || (s.charAt(0).toUpperCase() + s.slice(1))}</option>`).join('')}
+          </select>` : ''}
+        ${cfg.addable ? `<button class="btn btn-primary" id="tb-add">+ Add ${cfg.singular}</button>` : ''}
+      </div>`;
+  }
+
+  function renderTable(cfg, rows) {
+    if (!rows.length) {
+      return `<div class="data-table-wrap"><div class="empty-state">No ${cfg.plural.toLowerCase()} match your filters.</div></div>`;
+    }
+    const thead = cfg.columns.map(c => `<th>${c.label}</th>`).join('') + '<th></th>';
+    const tbody = rows.map(row => {
+      const tds = cfg.columns.map(c => `<td>${c.render ? c.render(row) : escapeHtml(row[c.key] ?? '')}</td>`).join('');
+      const actions = (cfg.actions ? cfg.actions(row) : []).map(a =>
+        `<button class="btn btn-sm ${a.tone === 'danger' ? 'btn-danger-outline' : 'btn-outline'}" data-row-action="${a.id}" data-row-id="${row.id}">${a.label}</button>`
+      ).join('');
+      return `<tr>${tds}<td><div class="row-actions">${actions}</div></td></tr>`;
+    }).join('');
+    return `<div class="data-table-wrap"><table class="data-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>
+      <div class="table-foot"><span>${rows.length} of ${cfg.rows.length} ${cfg.plural.toLowerCase()}</span></div></div>`;
+  }
+
+  function renderCardGrid(cfg, rows) {
+    if (!rows.length) return `<div class="empty-state">No ${cfg.plural.toLowerCase()} match your filters.</div>`;
+    const cards = rows.map(row => {
+      const actions = (cfg.actions ? cfg.actions(row) : []).map(a =>
+        `<button class="btn btn-sm ${a.tone === 'danger' ? 'btn-danger-outline' : 'btn-outline'}" data-row-action="${a.id}" data-row-id="${row.id}">${a.label}</button>`
+      ).join('');
+      return `<div class="entity-card">
+        <div class="card-banner">${cfg.cardIcon || '◭'}</div>
+        <div class="card-body">
+          <div class="card-title">${escapeHtml(row.title || row.name)}</div>
+          <div class="card-sub">${escapeHtml(row.subtitle || row.link || '')}</div>
+          <div class="card-meta">${row.position ? escapeHtml(row.position) + ' · ' : ''}${badgeHtml(row.status)}</div>
+          <div class="card-actions">${actions}</div>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="card-grid">${cards}</div>`;
+  }
+
+  function renderResourcePage(key) {
+    const cfg = RESOURCE_CONFIG[key];
+    const root = document.getElementById('page-resource');
+    if (!cfg) { root.innerHTML = '<div class="empty-state">Unknown page.</div>'; return; }
+    if (!pageState[key]) pageState[key] = { q: '', filter: '' };
+    const state = pageState[key];
+
+    if (cfg.customRender) {
+      root.innerHTML = cfg.customRender();
+      wireRowActions(cfg);
+      return;
+    }
+
+    let rows = cfg.rows.filter(r => matchesSearch(r, state.q));
+    if (state.filter && cfg.statusField) rows = rows.filter(r => r[cfg.statusField] === state.filter);
+
+    const body = cfg.layout === 'cards' ? renderCardGrid(cfg, rows) : renderTable(cfg, rows);
+    root.innerHTML = renderToolbar(cfg, state) + body;
+
+    const searchEl = document.getElementById('tb-search');
+    if (searchEl) searchEl.addEventListener('input', (e) => { state.q = e.target.value; renderResourcePage(key); preserveFocus('tb-search'); });
+    const filterEl = document.getElementById('tb-filter');
+    if (filterEl) filterEl.addEventListener('change', (e) => { state.filter = e.target.value; renderResourcePage(key); });
+    const addBtn = document.getElementById('tb-add');
+    if (addBtn) addBtn.addEventListener('click', () => openFormModal(cfg));
+
+    wireRowActions(cfg);
+
+    if (cfg.dynamicSub) pageSubEl.textContent = cfg.dynamicSub();
+  }
+
+  function preserveFocus(id) {
+    const el = document.getElementById(id);
+    if (el) { el.focus(); const v = el.value; el.value = ''; el.value = v; }
+  }
+
+  function wireRowActions(cfg) {
+    document.querySelectorAll('[data-row-action]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const actionId = btn.dataset.rowAction;
+        const rowId = btn.dataset.rowId;
+        const row = cfg.rows.find(r => String(r.id) === rowId);
+        const action = (cfg.actions ? cfg.actions(row) : []).find(a => a.id === actionId);
+        if (action && row) action.onClick(row);
+      });
+    });
+  }
+
+  // ====================================================================
+  // CROSS-RESOURCE ACTION HANDLERS
+  // ====================================================================
+  function removeRow(arr, id) {
+    const i = arr.findIndex(r => r.id === id);
+    if (i !== -1) arr.splice(i, 1);
+  }
+  function toggleStatus(row, a, b) { row.status = row.status === a ? b : a; }
+
+  function updateNavBadges() {
+    const onboardingCount = DB.onboarding.filter(r => r.status === 'pending').length;
+    const payoutsCount = DB.payouts.filter(r => r.status === 'pending').length;
+    const disputesCount = DB.disputes.filter(r => r.status === 'open').length;
+    const driverOnboardingCount = DB.deliveryOnboarding.filter(r => r.status === 'pending').length;
+
+    const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
+    setCount('badge-onboarding', onboardingCount);
+    setCount('badge-payouts', payoutsCount);
+    setCount('chip-onboarding-count', onboardingCount);
+    setCount('chip-payouts-count', payoutsCount);
+    setCount('chip-disputes-count', disputesCount);
+    setCount('chip-driveronboarding-count', driverOnboardingCount);
+
+    const onboardingBadgeWrap = document.getElementById('badge-onboarding');
+    if (onboardingBadgeWrap) onboardingBadgeWrap.style.display = onboardingCount ? '' : 'none';
+    const payoutsBadgeWrap = document.getElementById('badge-payouts');
+    if (payoutsBadgeWrap) payoutsBadgeWrap.style.display = payoutsCount ? '' : 'none';
+
+    const attentionChips = [
+      ['chip-onboarding-count', onboardingCount],
+      ['chip-payouts-count', payoutsCount],
+      ['chip-disputes-count', disputesCount],
+      ['chip-driveronboarding-count', driverOnboardingCount]
+    ];
+    attentionChips.forEach(([id, n]) => {
+      const chip = document.getElementById(id)?.closest('.chip');
+      if (chip) chip.style.display = n ? '' : 'none';
+    });
+  }
+
+  function approveOnboarding(row) {
+    confirmAction(`Approve <strong>${escapeHtml(row.name)}</strong> and onboard it as a live restaurant?`, () => {
+      removeRow(DB.onboarding, row.id);
+      DB.restaurants.unshift({ id: genId('RS'), name: row.name, owner: row.owner, cuisine: row.cuisine, orders: 0, rating: 0, status: 'active' });
+      showToast(`${row.name} approved and onboarded.`);
+      updateNavBadges();
+      renderResourcePage('onboarding');
+    }, { title: 'Approve restaurant', confirmLabel: 'Approve' });
+  }
+  function rejectOnboarding(row) {
+    confirmAction(`Reject the application from <strong>${escapeHtml(row.name)}</strong>? This cannot be undone.`, () => {
+      removeRow(DB.onboarding, row.id);
+      showToast(`${row.name} application rejected.`);
+      updateNavBadges();
+      renderResourcePage('onboarding');
+    }, { title: 'Reject application', confirmLabel: 'Reject', danger: true });
+  }
+
+  function approveDriverOnboarding(row) {
+    confirmAction(`Approve <strong>${escapeHtml(row.name)}</strong> as an active driver?`, () => {
+      removeRow(DB.deliveryOnboarding, row.id);
+      DB.deliveryBoys.unshift({ id: genId('DB'), name: row.name, phone: row.phone, vehicle: row.vehicle, deliveries: 0, rating: 0, status: 'active' });
+      showToast(`${row.name} approved as a driver.`);
+      updateNavBadges();
+      renderResourcePage('delivery-onboarding');
+    }, { title: 'Approve driver', confirmLabel: 'Approve' });
+  }
+  function rejectDriverOnboarding(row) {
+    confirmAction(`Reject the verification request from <strong>${escapeHtml(row.name)}</strong>?`, () => {
+      removeRow(DB.deliveryOnboarding, row.id);
+      showToast(`${row.name} verification rejected.`);
+      updateNavBadges();
+      renderResourcePage('delivery-onboarding');
+    }, { title: 'Reject driver', confirmLabel: 'Reject', danger: true });
+  }
+
+  function resolveDispute(row, approve) {
+    confirmAction(approve
+      ? `Approve a refund of <strong>${money(row.amount)}</strong> to ${escapeHtml(row.customer)}?`
+      : `Reject this dispute from ${escapeHtml(row.customer)}?`, () => {
+      row.status = approve ? 'resolved' : 'rejected';
+      showToast(approve ? `Refund of ${money(row.amount)} approved.` : `Dispute rejected.`);
+      updateNavBadges();
+      renderResourcePage('disputes');
+    }, { title: approve ? 'Approve refund' : 'Reject dispute', confirmLabel: approve ? 'Approve Refund' : 'Reject', danger: !approve });
+  }
+
+  function decidePayout(row, approve) {
+    confirmAction(approve
+      ? `Approve payout of <strong>${money(row.amount)}</strong> to ${escapeHtml(row.recipient)}?`
+      : `Reject payout request from ${escapeHtml(row.recipient)}?`, () => {
+      row.status = approve ? 'approved' : 'rejected';
+      showToast(approve ? `Payout of ${money(row.amount)} approved & queued for transfer.` : `Payout request rejected.`);
+      updateNavBadges();
+      renderResourcePage('payouts');
+    }, { title: approve ? 'Approve payout' : 'Reject payout', confirmLabel: approve ? 'Approve' : 'Reject', danger: !approve });
+  }
+
+  function advanceLiveOrder(row) {
+    const flow = { pending: 'preparing', preparing: 'out', out: 'delivered' };
+    const next = flow[row.status];
+    if (next === 'delivered') {
+      removeRow(DB.liveOrders, row.id);
+      DB.orderHistory.unshift({ id: row.id, customer: row.customer, restaurant: row.restaurant, total: row.total, date: '2026-06-16', status: 'delivered' });
+      showToast(`Order ${row.id} marked delivered.`);
+    } else {
+      row.status = next;
+      showToast(`Order ${row.id} → ${STATUS_LABEL[next] || next}.`);
+    }
+    renderResourcePage('live-orders');
+  }
+  function cancelLiveOrder(row) {
+    confirmAction(`Cancel order <strong>${row.id}</strong> for ${escapeHtml(row.customer)}?`, () => {
+      removeRow(DB.liveOrders, row.id);
+      DB.orderHistory.unshift({ id: row.id, customer: row.customer, restaurant: row.restaurant, total: row.total, date: '2026-06-16', status: 'cancelled' });
+      showToast(`Order ${row.id} cancelled.`);
+      renderResourcePage('live-orders');
+    }, { title: 'Cancel order', confirmLabel: 'Cancel Order', danger: true });
+  }
+  function refundOrder(row) {
+    confirmAction(`Open a dispute & refund flow for order <strong>${row.id}</strong>?`, () => {
+      DB.disputes.unshift({ id: genId('DP'), order: row.id, customer: row.customer, restaurant: row.restaurant, reason: 'Refund initiated by admin', amount: row.total, status: 'open' });
+      showToast(`Dispute opened for order ${row.id}.`);
+      updateNavBadges();
+      renderResourcePage('order-history');
+    }, { title: 'Open dispute', confirmLabel: 'Open Dispute' });
+  }
+
+  // ====================================================================
+  // RESOURCE CONFIGURATION (one entry per nav tab)
+  // ====================================================================
+  const RESOURCE_CONFIG = {
+    customers: {
+      key: 'customers', singular: 'Customer', plural: 'Customers', idPrefix: 'CU', rows: DB.customers,
+      statusField: 'status', addable: true,
+      fields: [
+        { name: 'name', label: 'Full name' },
+        { name: 'email', label: 'Email', type: 'email' },
+        { name: 'phone', label: 'Phone', type: 'tel' },
+        { name: 'university', label: 'University', default: 'UDST' },
+        { name: 'status', label: 'Status', type: 'select', options: ['active', 'blocked'] }
+      ],
+      defaults: () => ({ orders: 0, spend: 0, joined: '2026-06-16' }),
+      columns: [
+        { key: 'name', label: 'Customer', render: r => `<div class="cell-main">${escapeHtml(r.name)}</div><div class="cell-sub">${escapeHtml(r.email)}</div>` },
+        { key: 'phone', label: 'Phone' },
+        { key: 'orders', label: 'Orders' },
+        { key: 'spend', label: 'Total Spend', render: r => money(r.spend) },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: (row) => [
+        { id: 'view', label: 'View', onClick: (r) => openDetailModal(RESOURCE_CONFIG.customers, r) },
+        { id: 'edit', label: 'Edit', onClick: (r) => openFormModal(RESOURCE_CONFIG.customers, r) },
+        { id: 'toggle', label: row.status === 'active' ? 'Block' : 'Unblock', tone: row.status === 'active' ? 'danger' : '', onClick: (r) => {
+          confirmAction(`${r.status === 'active' ? 'Block' : 'Unblock'} <strong>${escapeHtml(r.name)}</strong>?`, () => {
+            toggleStatus(r, 'active', 'blocked'); showToast(`${r.name} ${r.status === 'blocked' ? 'blocked' : 'unblocked'}.`); renderResourcePage('customers');
+          }, { title: 'Update customer status', danger: r.status === 'active' });
+        } }
+      ],
+      detailFields: [{ name: 'name', label: 'Name' }, { name: 'email', label: 'Email' }, { name: 'phone', label: 'Phone' }, { name: 'university', label: 'University' }, { name: 'orders', label: 'Total Orders' }, { name: 'spend', label: 'Total Spend' }, { name: 'joined', label: 'Joined' }, { name: 'status', label: 'Status' }]
+    },
+
+    'live-orders': {
+      key: 'live-orders', singular: 'Order', plural: 'Live Orders', rows: DB.liveOrders,
+      statusField: 'status', addable: false,
+      columns: [
+        { key: 'id', label: 'Order' },
+        { key: 'customer', label: 'Customer' },
+        { key: 'restaurant', label: 'Restaurant' },
+        { key: 'items', label: 'Items' },
+        { key: 'total', label: 'Total', render: r => money(r.total) },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) },
+        { key: 'placed', label: 'Placed' }
+      ],
+      actions: (row) => [
+        { id: 'view', label: 'View', onClick: (r) => openDetailModal(RESOURCE_CONFIG['live-orders'], r) },
+        { id: 'advance', label: row.status === 'out' ? 'Mark Delivered' : 'Advance', onClick: advanceLiveOrder },
+        { id: 'cancel', label: 'Cancel', tone: 'danger', onClick: cancelLiveOrder }
+      ],
+      detailFields: [{ name: 'id', label: 'Order' }, { name: 'customer', label: 'Customer' }, { name: 'restaurant', label: 'Restaurant' }, { name: 'items', label: 'Items' }, { name: 'total', label: 'Total' }, { name: 'placed', label: 'Placed' }, { name: 'status', label: 'Status' }]
+    },
+
+    'order-history': {
+      key: 'order-history', singular: 'Order', plural: 'Order History', rows: DB.orderHistory,
+      statusField: 'status', addable: false,
+      columns: [
+        { key: 'id', label: 'Order' },
+        { key: 'customer', label: 'Customer' },
+        { key: 'restaurant', label: 'Restaurant' },
+        { key: 'total', label: 'Total', render: r => money(r.total) },
+        { key: 'date', label: 'Date' },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: (row) => [
+        { id: 'view', label: 'View', onClick: (r) => openDetailModal(RESOURCE_CONFIG['order-history'], r) },
+        ...(row.status === 'delivered' ? [{ id: 'refund', label: 'Refund', tone: 'danger', onClick: refundOrder }] : [])
+      ],
+      detailFields: [{ name: 'id', label: 'Order' }, { name: 'customer', label: 'Customer' }, { name: 'restaurant', label: 'Restaurant' }, { name: 'total', label: 'Total' }, { name: 'date', label: 'Date' }, { name: 'status', label: 'Status' }]
+    },
+
+    disputes: {
+      key: 'disputes', singular: 'Dispute', plural: 'Disputes', rows: DB.disputes,
+      statusField: 'status', addable: false,
+      dynamicSub: () => `${DB.disputes.filter(r => r.status === 'open').length} open disputes need review`,
+      columns: [
+        { key: 'order', label: 'Order' },
+        { key: 'customer', label: 'Customer' },
+        { key: 'restaurant', label: 'Restaurant' },
+        { key: 'reason', label: 'Reason' },
+        { key: 'amount', label: 'Amount', render: r => money(r.amount) },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: (row) => row.status === 'open' ? [
+        { id: 'approve', label: 'Approve Refund', onClick: (r) => resolveDispute(r, true) },
+        { id: 'reject', label: 'Reject', tone: 'danger', onClick: (r) => resolveDispute(r, false) }
+      ] : [{ id: 'view', label: 'View', onClick: (r) => openDetailModal(RESOURCE_CONFIG.disputes, r) }],
+      detailFields: [{ name: 'order', label: 'Order' }, { name: 'customer', label: 'Customer' }, { name: 'restaurant', label: 'Restaurant' }, { name: 'reason', label: 'Reason' }, { name: 'amount', label: 'Amount' }, { name: 'status', label: 'Status' }]
+    },
+
+    foods: {
+      key: 'foods', singular: 'Food Item', plural: 'Foods', idPrefix: 'FD', rows: DB.foods,
+      statusField: 'status', addable: true,
+      fields: [
+        { name: 'name', label: 'Item name' },
+        { name: 'restaurant', label: 'Restaurant', type: 'select', options: [...new Set(DB.restaurants.map(r => r.name))] },
+        { name: 'category', label: 'Category', type: 'select', options: DB.categories.map(c => c.name) },
+        { name: 'cuisine', label: 'Cuisine', type: 'select', options: DB.cuisines.map(c => c.name) },
+        { name: 'price', label: 'Price (QAR)', type: 'number', step: '0.01' },
+        { name: 'status', label: 'Status', type: 'select', options: ['active', 'inactive'] }
+      ],
+      columns: [
+        { key: 'name', label: 'Item', render: r => `<div class="cell-main">${escapeHtml(r.name)}</div><div class="cell-sub">${escapeHtml(r.restaurant)}</div>` },
+        { key: 'category', label: 'Category' },
+        { key: 'cuisine', label: 'Cuisine' },
+        { key: 'price', label: 'Price', render: r => money(r.price) },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: (row) => [
+        { id: 'edit', label: 'Edit', onClick: (r) => openFormModal(RESOURCE_CONFIG.foods, r) },
+        { id: 'toggle', label: row.status === 'active' ? 'Deactivate' : 'Activate', onClick: (r) => { toggleStatus(r, 'active', 'inactive'); showToast(`${r.name} marked ${r.status}.`); renderResourcePage('foods'); } },
+        { id: 'delete', label: 'Delete', tone: 'danger', onClick: (r) => confirmAction(`Delete <strong>${escapeHtml(r.name)}</strong> from the menu?`, () => { removeRow(DB.foods, r.id); showToast(`${r.name} deleted.`); renderResourcePage('foods'); }, { title: 'Delete item', danger: true, confirmLabel: 'Delete' }) }
+      ]
+    },
+
+    categories: {
+      key: 'categories', singular: 'Category', plural: 'Categories', idPrefix: 'CT', rows: DB.categories,
+      statusField: 'status', addable: true,
+      fields: [{ name: 'name', label: 'Category name' }, { name: 'status', label: 'Status', type: 'select', options: ['active', 'inactive'] }],
+      defaults: () => ({ foods: 0 }),
+      columns: [{ key: 'name', label: 'Category' }, { key: 'foods', label: 'Food Items' }, { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }],
+      actions: (row) => [
+        { id: 'edit', label: 'Edit', onClick: (r) => openFormModal(RESOURCE_CONFIG.categories, r) },
+        { id: 'delete', label: 'Delete', tone: 'danger', onClick: (r) => confirmAction(`Delete category <strong>${escapeHtml(r.name)}</strong>?`, () => { removeRow(DB.categories, r.id); showToast(`${r.name} deleted.`); renderResourcePage('categories'); }, { title: 'Delete category', danger: true, confirmLabel: 'Delete' }) }
+      ]
+    },
+
+    cuisine: {
+      key: 'cuisine', singular: 'Cuisine', plural: 'Cuisines', idPrefix: 'CSN', rows: DB.cuisines,
+      statusField: 'status', addable: true,
+      fields: [{ name: 'name', label: 'Cuisine name' }, { name: 'status', label: 'Status', type: 'select', options: ['active', 'inactive'] }],
+      defaults: () => ({ restaurants: 0 }),
+      columns: [{ key: 'name', label: 'Cuisine' }, { key: 'restaurants', label: 'Restaurants' }, { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }],
+      actions: (row) => [
+        { id: 'edit', label: 'Edit', onClick: (r) => openFormModal(RESOURCE_CONFIG.cuisine, r) },
+        { id: 'delete', label: 'Delete', tone: 'danger', onClick: (r) => confirmAction(`Delete cuisine <strong>${escapeHtml(r.name)}</strong>?`, () => { removeRow(DB.cuisines, r.id); showToast(`${r.name} deleted.`); renderResourcePage('cuisine'); }, { title: 'Delete cuisine', danger: true, confirmLabel: 'Delete' }) }
+      ]
+    },
+
+    offers: {
+      key: 'offers', singular: 'Offer', plural: 'Offers', idPrefix: 'OF', rows: DB.offers,
+      statusField: 'status', addable: true,
+      fields: [
+        { name: 'title', label: 'Offer title' },
+        { name: 'code', label: 'Promo code' },
+        { name: 'discount', label: 'Discount' },
+        { name: 'scope', label: 'Applies to', type: 'select', options: ['All Restaurants', ...DB.restaurants.map(r => r.name)] },
+        { name: 'expires', label: 'Expires', type: 'date' },
+        { name: 'status', label: 'Status', type: 'select', options: ['active', 'scheduled', 'expired'] }
+      ],
+      columns: [
+        { key: 'title', label: 'Offer', render: r => `<div class="cell-main">${escapeHtml(r.title)}</div><div class="cell-sub">${escapeHtml(r.code)}</div>` },
+        { key: 'discount', label: 'Discount' },
+        { key: 'scope', label: 'Scope' },
+        { key: 'expires', label: 'Expires' },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: (row) => [
+        { id: 'edit', label: 'Edit', onClick: (r) => openFormModal(RESOURCE_CONFIG.offers, r) },
+        { id: 'delete', label: 'Delete', tone: 'danger', onClick: (r) => confirmAction(`Delete offer <strong>${escapeHtml(r.title)}</strong>?`, () => { removeRow(DB.offers, r.id); showToast(`${r.title} deleted.`); renderResourcePage('offers'); }, { title: 'Delete offer', danger: true, confirmLabel: 'Delete' }) }
+      ]
+    },
+
+    restaurants: {
+      key: 'restaurants', singular: 'Restaurant', plural: 'Restaurants', idPrefix: 'RS', rows: DB.restaurants,
+      statusField: 'status', addable: true,
+      fields: [
+        { name: 'name', label: 'Restaurant name' },
+        { name: 'owner', label: 'Owner', type: 'select', options: DB.owners.map(o => o.name) },
+        { name: 'cuisine', label: 'Cuisine', type: 'select', options: DB.cuisines.map(c => c.name) },
+        { name: 'status', label: 'Status', type: 'select', options: ['active', 'suspended'] }
+      ],
+      defaults: () => ({ orders: 0, rating: 0 }),
+      columns: [
+        { key: 'name', label: 'Restaurant', render: r => `<div class="cell-main">${escapeHtml(r.name)}</div><div class="cell-sub">${escapeHtml(r.owner)}</div>` },
+        { key: 'cuisine', label: 'Cuisine' },
+        { key: 'orders', label: 'Orders' },
+        { key: 'rating', label: 'Rating', render: r => r.rating ? '★ ' + r.rating.toFixed(1) : '—' },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: (row) => [
+        { id: 'view', label: 'View', onClick: (r) => openDetailModal(RESOURCE_CONFIG.restaurants, r) },
+        { id: 'edit', label: 'Edit', onClick: (r) => openFormModal(RESOURCE_CONFIG.restaurants, r) },
+        { id: 'toggle', label: row.status === 'active' ? 'Suspend' : 'Activate', tone: row.status === 'active' ? 'danger' : '', onClick: (r) => confirmAction(`${r.status === 'active' ? 'Suspend' : 'Re-activate'} <strong>${escapeHtml(r.name)}</strong>?`, () => { toggleStatus(r, 'active', 'suspended'); showToast(`${r.name} ${r.status === 'suspended' ? 'suspended' : 'activated'}.`); renderResourcePage('restaurants'); }, { title: 'Update restaurant status', danger: r.status === 'active' }) }
+      ],
+      detailFields: [{ name: 'name', label: 'Name' }, { name: 'owner', label: 'Owner' }, { name: 'cuisine', label: 'Cuisine' }, { name: 'orders', label: 'Total Orders' }, { name: 'rating', label: 'Rating' }, { name: 'status', label: 'Status' }]
+    },
+
+    owners: {
+      key: 'owners', singular: 'Owner', plural: 'Owners', idPrefix: 'OW', rows: DB.owners,
+      statusField: 'status', addable: true,
+      fields: [
+        { name: 'name', label: 'Full name' },
+        { name: 'email', label: 'Email', type: 'email' },
+        { name: 'phone', label: 'Phone', type: 'tel' },
+        { name: 'status', label: 'Status', type: 'select', options: ['active', 'suspended'] }
+      ],
+      defaults: () => ({ restaurants: 0 }),
+      columns: [
+        { key: 'name', label: 'Owner', render: r => `<div class="cell-main">${escapeHtml(r.name)}</div><div class="cell-sub">${escapeHtml(r.email)}</div>` },
+        { key: 'phone', label: 'Phone' },
+        { key: 'restaurants', label: 'Restaurants' },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: (row) => [
+        { id: 'edit', label: 'Edit', onClick: (r) => openFormModal(RESOURCE_CONFIG.owners, r) },
+        { id: 'toggle', label: row.status === 'active' ? 'Suspend' : 'Activate', tone: row.status === 'active' ? 'danger' : '', onClick: (r) => { toggleStatus(r, 'active', 'suspended'); showToast(`${r.name} ${r.status === 'suspended' ? 'suspended' : 'activated'}.`); renderResourcePage('owners'); } }
+      ]
+    },
+
+    onboarding: {
+      key: 'onboarding', singular: 'Application', plural: 'Onboarding Requests', rows: DB.onboarding,
+      statusField: 'status', addable: false,
+      dynamicSub: () => `${DB.onboarding.filter(r => r.status === 'pending').length} restaurants awaiting approval`,
+      columns: [
+        { key: 'name', label: 'Restaurant' },
+        { key: 'owner', label: 'Owner' },
+        { key: 'cuisine', label: 'Cuisine' },
+        { key: 'submitted', label: 'Submitted' },
+        { key: 'docs', label: 'Documents' },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: () => [
+        { id: 'approve', label: 'Approve', onClick: approveOnboarding },
+        { id: 'reject', label: 'Reject', tone: 'danger', onClick: rejectOnboarding }
+      ]
+    },
+
+    'delivery-boys': {
+      key: 'delivery-boys', singular: 'Driver', plural: 'Delivery Boys', idPrefix: 'DB', rows: DB.deliveryBoys,
+      statusField: 'status', addable: true,
+      fields: [
+        { name: 'name', label: 'Full name' },
+        { name: 'phone', label: 'Phone', type: 'tel' },
+        { name: 'vehicle', label: 'Vehicle', type: 'select', options: ['Scooter', 'Bicycle', 'Car'] },
+        { name: 'status', label: 'Status', type: 'select', options: ['active', 'suspended'] }
+      ],
+      defaults: () => ({ deliveries: 0, rating: 0 }),
+      columns: [
+        { key: 'name', label: 'Driver' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'vehicle', label: 'Vehicle' },
+        { key: 'deliveries', label: 'Deliveries' },
+        { key: 'rating', label: 'Rating', render: r => r.rating ? '★ ' + r.rating.toFixed(1) : '—' },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: (row) => [
+        { id: 'edit', label: 'Edit', onClick: (r) => openFormModal(RESOURCE_CONFIG['delivery-boys'], r) },
+        { id: 'toggle', label: row.status === 'active' ? 'Suspend' : 'Activate', tone: row.status === 'active' ? 'danger' : '', onClick: (r) => confirmAction(`${r.status === 'active' ? 'Suspend' : 'Re-activate'} <strong>${escapeHtml(r.name)}</strong>?`, () => { toggleStatus(r, 'active', 'suspended'); showToast(`${r.name} ${r.status === 'suspended' ? 'suspended' : 'activated'}.`); renderResourcePage('delivery-boys'); }, { title: 'Update driver status', danger: r.status === 'active' }) }
+      ]
+    },
+
+    'delivery-onboarding': {
+      key: 'delivery-onboarding', singular: 'Application', plural: 'Delivery Onboarding', rows: DB.deliveryOnboarding,
+      statusField: 'status', addable: false,
+      dynamicSub: () => `${DB.deliveryOnboarding.filter(r => r.status === 'pending').length} drivers awaiting verification`,
+      columns: [
+        { key: 'name', label: 'Applicant' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'vehicle', label: 'Vehicle' },
+        { key: 'submitted', label: 'Submitted' },
+        { key: 'docs', label: 'Documents' },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: () => [
+        { id: 'approve', label: 'Approve', onClick: approveDriverOnboarding },
+        { id: 'reject', label: 'Reject', tone: 'danger', onClick: rejectDriverOnboarding }
+      ]
+    },
+
+    payouts: {
+      key: 'payouts', singular: 'Payout', plural: 'Payout Requests', rows: DB.payouts,
+      statusField: 'status', addable: false,
+      dynamicSub: () => `${DB.payouts.filter(r => r.status === 'pending').length} requests pending review`,
+      columns: [
+        { key: 'recipient', label: 'Recipient' },
+        { key: 'type', label: 'Type' },
+        { key: 'amount', label: 'Amount', render: r => money(r.amount) },
+        { key: 'requested', label: 'Requested' },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: (row) => row.status === 'pending' ? [
+        { id: 'approve', label: 'Approve', onClick: (r) => decidePayout(r, true) },
+        { id: 'reject', label: 'Reject', tone: 'danger', onClick: (r) => decidePayout(r, false) }
+      ] : []
+    },
+
+    commission: {
+      key: 'commission', singular: 'Report Row', plural: 'Commission Reports',
+      customRender: () => {
+        const totalCommission = DB.commission.reduce((s, r) => s + r.commission, 0);
+        const totalGross = DB.commission.reduce((s, r) => s + r.gross, 0);
+        const rows = DB.commission.map(r => `<tr>
+          <td class="cell-main">${escapeHtml(r.restaurant)}</td><td>${r.orders}</td>
+          <td>${money(r.gross)}</td><td>${r.rate}</td><td>${money(r.commission)}</td>
+        </tr>`).join('');
+        return `
+          <div class="profit-stats" style="grid-template-columns:repeat(3,1fr);">
+            <div class="stat-card"><div class="stat-label">Total Gross Sales</div><div class="stat-value">${money(totalGross)}</div></div>
+            <div class="stat-card commission"><div class="stat-label">Total Commission Earned</div><div class="stat-value">${money(totalCommission)}</div></div>
+            <div class="stat-card"><div class="stat-label">Restaurants Reporting</div><div class="stat-value">${DB.commission.length}</div></div>
+          </div>
+          <div class="data-table-wrap"><table class="data-table">
+            <thead><tr><th>Restaurant</th><th>Orders</th><th>Gross Sales</th><th>Rate</th><th>Commission</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>`;
+      }
+    },
+
+    revenue: {
+      key: 'revenue', singular: 'Report Row', plural: 'Revenue Reports',
+      customRender: () => {
+        const max = Math.max(...DB.revenue.map(r => r.revenue));
+        const totalRevenue = DB.revenue.reduce((s, r) => s + r.revenue, 0);
+        const totalOrders = DB.revenue.reduce((s, r) => s + r.orders, 0);
+        const bars = DB.revenue.map(r => `
+          <div class="bar-col" style="width:90px;">
+            <div class="bar-wrap" style="width:54px; height:150px;"><div class="bar this" style="height:${Math.round((r.revenue / max) * 100)}%"><span class="bar-value">${r.revenue.toFixed(0)}</span></div></div>
+            <div class="bar-col-label">${r.date.slice(5)}</div>
+          </div>`).join('');
+        const rows = DB.revenue.map(r => `<tr><td class="cell-main">${r.date}</td><td>${r.orders}</td><td>${money(r.revenue)}</td><td>${money(r.commission)}</td></tr>`).join('');
+        return `
+          <div class="profit-stats" style="grid-template-columns:repeat(2,1fr);">
+            <div class="stat-card"><div class="stat-label">Revenue (Last 7 Days)</div><div class="stat-value">${money(totalRevenue)}</div></div>
+            <div class="stat-card"><div class="stat-label">Orders (Last 7 Days)</div><div class="stat-value">${totalOrders}</div></div>
+          </div>
+          <div class="chart-card" style="margin-bottom:18px;"><div class="bar-chart" style="gap:18px; height:180px;">${bars}</div></div>
+          <div class="data-table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Orders</th><th>Revenue</th><th>Commission</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      }
+    },
+
+    banners: {
+      key: 'banners', singular: 'Banner', plural: 'Banners', idPrefix: 'BN', rows: DB.banners,
+      statusField: 'status', addable: true, layout: 'cards', cardIcon: '◭',
+      fields: [
+        { name: 'title', label: 'Title' },
+        { name: 'subtitle', label: 'Subtitle' },
+        { name: 'link', label: 'Link / URL' },
+        { name: 'position', label: 'Position', type: 'select', options: ['Home Top', 'Home Carousel', 'Home Bottom'] },
+        { name: 'status', label: 'Status', type: 'select', options: ['active', 'scheduled', 'draft'] }
+      ],
+      actions: (row) => [
+        { id: 'edit', label: 'Edit', onClick: (r) => openFormModal(RESOURCE_CONFIG.banners, r) },
+        { id: 'toggle', label: row.status === 'active' ? 'Unpublish' : 'Publish', onClick: (r) => { r.status = r.status === 'active' ? 'draft' : 'active'; showToast(`${r.title} ${r.status === 'active' ? 'published' : 'unpublished'}.`); renderResourcePage('banners'); } },
+        { id: 'delete', label: 'Delete', tone: 'danger', onClick: (r) => confirmAction(`Delete banner <strong>${escapeHtml(r.title)}</strong>?`, () => { removeRow(DB.banners, r.id); showToast(`${r.title} deleted.`); renderResourcePage('banners'); }, { title: 'Delete banner', danger: true, confirmLabel: 'Delete' }) }
+      ]
+    },
+
+    documents: {
+      key: 'documents', singular: 'Document', plural: 'Documents', idPrefix: 'DC', rows: DB.documents,
+      statusField: 'status', addable: true,
+      fields: [
+        { name: 'name', label: 'Document name' },
+        { name: 'owner', label: 'Owner / Partner' },
+        { name: 'type', label: 'Type', type: 'select', options: ['Trade License', 'Food Safety', 'Driver ID'] },
+        { name: 'status', label: 'Status', type: 'select', options: ['verified', 'pending', 'expired'] }
+      ],
+      defaults: () => ({ uploaded: '2026-06-16' }),
+      columns: [
+        { key: 'name', label: 'Document', render: r => `<div class="cell-main">${escapeHtml(r.name)}</div><div class="cell-sub">${escapeHtml(r.owner)}</div>` },
+        { key: 'type', label: 'Type' },
+        { key: 'uploaded', label: 'Uploaded' },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: (row) => [
+        ...(row.status === 'pending' ? [
+          { id: 'verify', label: 'Verify', onClick: (r) => { r.status = 'verified'; showToast(`${r.name} verified.`); renderResourcePage('documents'); } },
+          { id: 'reject', label: 'Reject', tone: 'danger', onClick: (r) => { r.status = 'expired'; showToast(`${r.name} marked rejected/expired.`); renderResourcePage('documents'); } }
+        ] : []),
+        { id: 'delete', label: 'Delete', tone: 'danger', onClick: (r) => confirmAction(`Delete document <strong>${escapeHtml(r.name)}</strong>?`, () => { removeRow(DB.documents, r.id); showToast(`${r.name} deleted.`); renderResourcePage('documents'); }, { title: 'Delete document', danger: true, confirmLabel: 'Delete' }) }
+      ]
+    },
+
+    roles: {
+      key: 'roles', singular: 'Admin Account', plural: 'Admin Accounts', idPrefix: 'AD', rows: DB.admins,
+      statusField: 'status', addable: true,
+      fields: [
+        { name: 'name', label: 'Full name' },
+        { name: 'email', label: 'Email', type: 'email' },
+        { name: 'role', label: 'Role', type: 'select', options: ['super_admin', 'operations', 'finance', 'support', 'qa'] },
+        { name: 'testAccount', label: 'Test account? (writes forced to environment:test)', type: 'select', options: ['no', 'yes'] },
+        { name: 'status', label: 'Status', type: 'select', options: ['active', 'suspended'] }
+      ],
+      columns: [
+        { key: 'name', label: 'Admin', render: r => `<div class="cell-main">${escapeHtml(r.name)}</div><div class="cell-sub">${escapeHtml(r.email)}</div>` },
+        { key: 'role', label: 'Role', render: r => `<span class="badge neutral">${ROLE_LABEL[r.role] || r.role}</span>` },
+        { key: 'testAccount', label: 'Test Account', render: r => r.testAccount === 'yes' ? '<span class="badge warn">Yes</span>' : '<span class="badge neutral">No</span>' },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: (row) => [
+        { id: 'edit', label: 'Edit', onClick: (r) => openFormModal(RESOURCE_CONFIG.roles, r) },
+        { id: 'toggle', label: row.status === 'active' ? 'Suspend' : 'Activate', tone: row.status === 'active' ? 'danger' : '', onClick: (r) => confirmAction(`${r.status === 'active' ? 'Suspend' : 'Re-activate'} <strong>${escapeHtml(r.name)}</strong>'s admin access?`, () => { toggleStatus(r, 'active', 'suspended'); showToast(`${r.name} ${r.status === 'suspended' ? 'suspended' : 'activated'}.`); renderResourcePage('roles'); }, { title: 'Update admin access', danger: row.status === 'active' }) }
+      ],
+      detailFields: [{ name: 'name', label: 'Name' }, { name: 'email', label: 'Email' }, { name: 'role', label: 'Role' }, { name: 'testAccount', label: 'Test Account' }, { name: 'status', label: 'Status' }]
+    }
+  };
+
+  // ====================================================================
+  // NAVIGATION
+  // ====================================================================
+  const dashboardPage = document.getElementById('page-dashboard');
+  const resourcePage = document.getElementById('page-resource');
+  const pageTitleEl = document.getElementById('page-title');
+  const pageSubEl = document.getElementById('page-sub');
+
+  function setActiveNav(pageKey) {
+    document.querySelectorAll('.nav-top-item, .nav-sub-item').forEach(el => el.classList.remove('active'));
+    const navBtn = document.querySelector(`.sidebar [data-page="${pageKey}"]`);
+    if (navBtn) {
+      navBtn.classList.add('active');
+      const group = navBtn.closest('.nav-group');
+      if (group) group.classList.add('open');
+      pageTitleEl.textContent = navBtn.dataset.title;
+      pageSubEl.textContent = navBtn.dataset.sub;
+    }
+  }
+
+  function navigateTo(pageKey) {
+    currentPageKey = pageKey;
+    setActiveNav(pageKey);
+    if (pageKey === 'dashboard') {
+      dashboardPage.style.display = '';
+      resourcePage.style.display = 'none';
+    } else {
+      dashboardPage.style.display = 'none';
+      resourcePage.style.display = '';
+      renderResourcePage(pageKey);
+    }
+    document.getElementById('content').scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  document.querySelectorAll('[data-page]').forEach(btn => {
+    btn.addEventListener('click', () => navigateTo(btn.dataset.page));
+  });
+
+  // ---------- Toasts (flavor text on dashboard quick-links) ----------
+  document.querySelectorAll('[data-toast]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showToast(el.dataset.toast);
+    });
+  });
+
+  // ---------- Live / Testing environment switch (visual only — UX demo) ----------
+  const envSwitchBtn = document.getElementById('env-switch');
+  const envSwitchLabel = document.getElementById('env-switch-label');
+  const envBanner = document.getElementById('env-banner');
+  envSwitchBtn.addEventListener('click', () => {
+    const isLive = envSwitchBtn.dataset.env === 'live';
+    const next = isLive ? 'test' : 'live';
+    envSwitchBtn.dataset.env = next;
+    envSwitchLabel.textContent = next === 'live' ? 'LIVE' : 'TESTING';
+    envBanner.style.display = next === 'test' ? '' : 'none';
+    showToast(next === 'test'
+      ? 'Switched to Testing — every list below now shows isolated test data only.'
+      : 'Switched back to Live data.');
+  });
+
+  // ---------- Role preview (sidebar UX demo only) ----------
+  const rolePreviewSelect = document.getElementById('role-preview-select');
+  const adminRoleLabel = document.getElementById('admin-role-label');
+
+  function applyRoleVisibility(role) {
+    const allowed = ROLE_PERMISSIONS[role] || [];
+    const sees = (key) => allowed.includes('*') || allowed.includes(key);
+
+    document.querySelectorAll('.sidebar [data-page]').forEach(el => {
+      el.style.display = sees(el.dataset.page) ? '' : 'none';
+    });
+    document.querySelectorAll('.nav-group').forEach(group => {
+      const groupKey = group.dataset.group;
+      if (groupKey === 'system') {
+        // Role & Access Management is Super-Admin-only, regardless of the
+        // allowedModules list — only super_admin manages other admins/roles.
+        group.style.display = role === 'super_admin' ? '' : 'none';
+        return;
+      }
+      const anyVisible = Array.from(group.querySelectorAll('[data-page]'))
+        .some(el => el.style.display !== 'none');
+      group.style.display = anyVisible ? '' : 'none';
+    });
+
+    adminRoleLabel.textContent = ROLE_LABEL[role] || role;
+
+    // If the page currently open isn't visible to this role, bounce to Dashboard
+    // — mirrors the route-guard behavior described in PLAN.md §2.3.
+    const currentBtn = document.querySelector(`.sidebar [data-page="${currentPageKey}"]`);
+    if (currentBtn && currentBtn.style.display === 'none') {
+      navigateTo('dashboard');
+      showToast(`${ROLE_LABEL[role]} doesn't have access to that page — back to Dashboard.`);
+    }
+  }
+
+  rolePreviewSelect.addEventListener('change', (e) => applyRoleVisibility(e.target.value));
+
+  // ---------- Init ----------
+  updateNavBadges();
+  applyRoleVisibility('super_admin');
+</script>
+
+<!-- ====================================================================
+     LIVE FIREBASE INTEGRATION
+     Everything above this point is the original static prototype, left
+     untouched. Everything below wires it to the real Uni Eats Firebase
+     project: an admin login gate, then live data for Customers,
+     Restaurants, Delivery Boys, Live Orders, Order History and Roles.
+     Pages with no real backing data anywhere in the 3 mobile apps yet
+     (Disputes, Foods, Categories, Cuisine, Offers, Owners, Onboarding,
+     Delivery Onboarding, Payouts, Commission, Revenue detail, Banners,
+     Documents) keep the original demo data and are flagged in the UI.
+==================================================================== -->
+<style>
+  .login-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: #0c1410; display: flex; align-items: center; justify-content: center;
+    font-family: inherit;
+  }
+  .login-card {
+    width: 360px; background: var(--surface, #fff); border-radius: 16px;
+    padding: 32px 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  }
+  .login-card h1 { font-size: 18px; margin: 0 0 4px; }
+  .login-card p.sub { font-size: 13px; color: #888; margin: 0 0 22px; }
+  .login-card label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; margin-top: 14px; }
+  .login-card input {
+    width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px;
+    border: 1px solid #ccc; font-size: 14px;
+  }
+  .login-card button {
+    width: 100%; margin-top: 20px; padding: 11px; border-radius: 8px; border: none;
+    background: #1b5e20; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer;
+  }
+  .login-card button:disabled { opacity: 0.6; cursor: default; }
+  .login-error { color: #c62828; font-size: 12.5px; margin-top: 12px; min-height: 1em; }
+  body:not(.authed) .app { display: none; }
+</style>
+
+<div class="login-overlay" id="login-overlay">
+  <div class="login-card">
+    <h1>Uni Eats — Admin</h1>
+    <p class="sub">Sign in with an authorized admin account.</p>
+    <form id="login-form">
+      <label>Email</label>
+      <input type="email" id="login-email" required autocomplete="username" />
+      <label>Password</label>
+      <input type="password" id="login-password" required autocomplete="current-password" />
+      <div class="login-error" id="login-error"></div>
+      <button type="submit" id="login-submit">Sign In</button>
+      <button type="button" id="login-forgot" style="background:transparent; color:#1b5e20; margin-top:10px; font-weight:600;">Forgot password? Email me a reset link</button>
+    </form>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script>
+(function () {
+  // The Firebase Web "config" object is not a secret — it's meant to ship
+  // in client code. Actual protection comes from Firestore security rules
+  // plus the admins-collection allow-list check below.
+  const firebaseConfig = {
+    apiKey: "AIzaSyBec1zZC4uWnmqAFKuCCEOssWdF9AvUzPM",
+    authDomain: "uni-eats-v2-aabf5.firebaseapp.com",
+    projectId: "uni-eats-v2-aabf5",
+    storageBucket: "uni-eats-v2-aabf5.firebasestorage.app",
+    messagingSenderId: "894339318990",
+    appId: "1:894339318990:web:120d449f52cbc4b24b3c9f",
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+
+  // Only these emails may bootstrap themselves into the admins collection
+  // on first sign-in. Every other admin must already have an
+  // `admins/{uid}` doc (added via the Roles page once you're in) to get
+  // past the gate.
+  const OWNER_EMAILS = ['syedfurqaan02@gmail.com', 'syedfurqaan30@gmail.com'];
+
+  const overlay = document.getElementById('login-overlay');
+  const form = document.getElementById('login-form');
+  const errorEl = document.getElementById('login-error');
+  const submitBtn = document.getElementById('login-submit');
+
+  // Real arrays that the original prototype's RESOURCE_CONFIG already
+  // holds references to — mutate in place so those references stay valid.
+  function replaceAll(arr, items) {
+    arr.length = 0;
+    arr.push(...items);
+  }
+
+  const money2 = (n) => 'QAR ' + Number(n || 0).toFixed(2);
+
+  // Restaurant metadata not stored in Firestore (mirrors the vendor app's
+  // hardcoded test-account map) — used only for cuisine/owner fallback
+  // display when a restaurant has no Firestore vendorAccounts doc.
+  const TEST_VENDOR_OWNERS = {
+    r001: 'timhortons@testrun.qa', r002: 'oakberry@testrun.qa', r003: 'edgecafe@testrun.qa',
+    r004: 'caribou@testrun.qa', r005: 'jamkai@testrun.qa', r006: 'boldcafe@testrun.qa',
+    r007: 'lhardy@testrun.qa', r008: 'ennabi@testrun.qa',
+  };
+
+  const LIVE_ORDER_STATUSES = new Set(['placed', 'preparing', 'ready', 'assigned', 'pickedUp', 'enRoute']);
+
+  function formatDateTime(date) {
+    const datePart = date.toISOString().slice(0, 10);
+    let h = date.getHours();
+    const m = String(date.getMinutes()).padStart(2, '0');
+    const period = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${datePart}, ${h}:${m} ${period}`;
+  }
+
+  function timeAgo(date) {
+    const mins = Math.max(0, Math.round((Date.now() - date.getTime()) / 60000));
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.round(hrs / 24)}d ago`;
+  }
+
+  // Live listener state — replaces the old one-time .get() snapshot that
+  // only ever loaded data once at login. Each collection has its own
+  // onSnapshot listener; ANY change in ANY of the three apps (a new order,
+  // a driver going online, a vendor going busy, a customer being blocked)
+  // re-runs _recomputeDashboard() immediately, so the admin sees what's
+  // actually happening across the whole system live, not a stale snapshot
+  // from whenever they last logged in or manually refreshed.
+  let _liveUnsubs = [];
+  let _liveDocs = { users: [], orders: [], restaurants: [], vendorAccounts: [], drivers: [] };
+  let _liveLoaded = { users: false, orders: false, restaurants: false, vendorAccounts: false, drivers: false };
+
+  function teardownLiveListeners() {
+    _liveUnsubs.forEach((fn) => fn());
+    _liveUnsubs = [];
+  }
+
+  function loadRealData() {
+    teardownLiveListeners();
+    return new Promise((resolve) => {
+      let resolved = false;
+      const onUpdate = (key) => (snap) => {
+        _liveDocs[key] = snap.docs;
+        _liveLoaded[key] = true;
+        _recomputeDashboard();
+        if (!resolved && Object.values(_liveLoaded).every(Boolean)) {
+          resolved = true;
+          resolve();
+        }
+      };
+      const onErr = (key) => (err) => console.error(`[Admin] ${key} listener failed`, err);
+
+      _liveUnsubs.push(db.collection('users').onSnapshot(onUpdate('users'), onErr('users')));
+      _liveUnsubs.push(db.collection('orders').onSnapshot(onUpdate('orders'), onErr('orders')));
+      _liveUnsubs.push(db.collection('restaurants').onSnapshot(onUpdate('restaurants'), onErr('restaurants')));
+      _liveUnsubs.push(db.collection('vendorAccounts').onSnapshot(onUpdate('vendorAccounts'), onErr('vendorAccounts')));
+      _liveUnsubs.push(db.collection('drivers').onSnapshot(onUpdate('drivers'), onErr('drivers')));
+    });
+  }
+
+  function _recomputeDashboard() {
+    const usersSnap = { docs: _liveDocs.users };
+    const ordersSnap = { docs: _liveDocs.orders };
+    const restaurantsSnap = { docs: _liveDocs.restaurants };
+    const vendorAccountsSnap = { docs: _liveDocs.vendorAccounts };
+    const driversSnap = { docs: _liveDocs.drivers };
+
+    // ---- Orders: split into live vs history, and tally per-customer spend ----
+    const allOrders = ordersSnap.docs.map((d) => ({ docId: d.id, ...d.data() }));
+    const spendByUser = {};
+    const ordersByUser = {};
+    let totalRevenue = 0;
+    const snapCounts = { pending: 0, preparing: 0, out: 0, delivered: 0, cancelled: 0 };
+
+    const liveOrders = [];
+    const orderHistory = [];
+
+    allOrders.forEach((o) => {
+      const status = o.status || 'placed';
+      const total = Number(o.total || 0);
+      const uid = o.userId || '';
+      ordersByUser[uid] = (ordersByUser[uid] || 0) + 1;
+      const placedDate = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate() : new Date();
+      // For pickup orders, 'pickedUp' means the customer collected it —
+      // terminal, same as 'delivered' for delivery orders.
+      const isPickupDone = status === 'pickedUp' && o.orderType === 'pickup';
+
+      // Use the same order number shown in the user/vendor/driver apps —
+      // not a fabricated ID — so admins can cross-reference an order.
+      const orderLabel = o.orderNumber || ('#' + o.docId.slice(0, 6).toUpperCase());
+
+      if (status === 'delivered' || isPickupDone) {
+        totalRevenue += total;
+        spendByUser[uid] = (spendByUser[uid] || 0) + total;
+        snapCounts.delivered++;
+        orderHistory.push({ id: orderLabel, customer: o.customerName || '—', restaurant: o.restaurantName || '—', total, date: formatDateTime(placedDate), status: 'delivered' });
+      } else if (status === 'cancelled') {
+        snapCounts.cancelled++;
+        orderHistory.push({ id: orderLabel, customer: o.customerName || '—', restaurant: o.restaurantName || '—', total, date: formatDateTime(placedDate), status: 'cancelled' });
+      } else if (LIVE_ORDER_STATUSES.has(status)) {
+        spendByUser[uid] = (spendByUser[uid] || 0) + total; // count as spend even while in-flight
+        const uiStatus = status === 'placed' ? 'pending'
+          : status === 'preparing' ? 'preparing'
+          : 'out'; // ready / assigned / pickedUp / enRoute → "out for delivery"
+        if (uiStatus === 'pending') snapCounts.pending++;
+        else if (uiStatus === 'preparing') snapCounts.preparing++;
+        else snapCounts.out++;
+        liveOrders.push({
+          id: orderLabel, customer: o.customerName || '—', restaurant: o.restaurantName || '—',
+          items: Array.isArray(o.items) ? o.items.reduce((s, i) => s + (i.qty || 1), 0) : 0,
+          total, status: uiStatus, placed: `${timeAgo(placedDate)} · ${formatDateTime(placedDate).split(', ')[1]}`,
+        });
+      }
+    });
+    orderHistory.sort((a, b) => b.date.localeCompare(a.date));
+    liveOrders.sort((a, b) => a.placed.localeCompare(b.placed));
+
+    // ---- Customers ----
+    const customers = usersSnap.docs.map((d) => {
+      const u = d.data();
+      return {
+        id: d.id, name: u.name || '—', email: u.email || '—', phone: u.phone || '—',
+        university: 'UDST', orders: ordersByUser[d.id] || 0, spend: spendByUser[d.id] || 0,
+        joined: '—', status: u.isBlocked ? 'blocked' : 'active',
+      };
+    });
+
+    // ---- Restaurants (cross-ref vendorAccounts for owner email) ----
+    const ownerByRestaurantId = {};
+    vendorAccountsSnap.docs.forEach((d) => {
+      const v = d.data();
+      if (v.restaurantId) ownerByRestaurantId[v.restaurantId] = v.email || d.id;
+    });
+    const restaurants = restaurantsSnap.docs.map((d) => {
+      const r = d.data();
+      const ordersForThis = allOrders.filter((o) => o.vendorId === d.id).length;
+      return {
+        id: d.id, name: r.name || d.id,
+        owner: ownerByRestaurantId[d.id] || TEST_VENDOR_OWNERS[d.id] || '—',
+        cuisine: '—', orders: ordersForThis, rating: 0,
+        status: r.adminSuspended ? 'suspended' : 'active',
+      };
+    });
+
+    // ---- Drivers ----
+    const deliveryBoys = driversSnap.docs.map((d) => {
+      const dr = d.data();
+      return {
+        id: d.id, name: dr.name || '—', phone: dr.phone || '—', vehicle: '—',
+        deliveries: dr.totalTripsAllTime || 0, rating: dr.rating || 0,
+        status: dr.isSuspended ? 'suspended' : 'active',
+      };
+    });
+
+    replaceAll(DB.customers, customers);
+    replaceAll(DB.restaurants, restaurants);
+    replaceAll(DB.deliveryBoys, deliveryBoys);
+    replaceAll(DB.liveOrders, liveOrders);
+    replaceAll(DB.orderHistory, orderHistory);
+
+    // ---- Dashboard KPIs ----
+    const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setText('kpi-revenue', money2(totalRevenue));
+    setText('kpi-orders', allOrders.length);
+    setText('kpi-customers', customers.length);
+    setText('kpi-drivers', deliveryBoys.length);
+    setText('snap-pending', snapCounts.pending);
+    setText('snap-preparing', snapCounts.preparing);
+    setText('snap-out', snapCounts.out);
+    setText('snap-delivered', snapCounts.delivered);
+    setText('snap-cancelled', snapCounts.cancelled);
+
+    // ---- Top Performers: real aggregation from allOrders, replacing what
+    // used to be a permanently hardcoded "Zinger Burger / Burger Barn" list
+    // with no real backing data at all. ----
+    const itemCounts = {};
+    allOrders.forEach((o) => {
+      (Array.isArray(o.items) ? o.items : []).forEach((i) => {
+        const name = i.name || 'Unknown item';
+        itemCounts[name] = (itemCounts[name] || 0) + (i.qty || 1);
+      });
+    });
+    const topItems = Object.entries(itemCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const itemMax = topItems.length ? topItems[0][1] : 1;
+    const topItemsEl = document.getElementById('top-items-list');
+    if (topItemsEl) {
+      topItemsEl.innerHTML = topItems.length
+        ? topItems.map(([name, count]) => `
+            <div class="item-bar-row">
+              <span class="item-bar-name">${escapeHtml(name)}</span>
+              <div class="item-bar-track"><div class="item-bar-fill" style="width:${Math.round(count / itemMax * 100)}%"></div></div>
+              <span class="item-bar-val">${count}</span>
+            </div>`).join('')
+        : '<div class="item-bar-row"><span class="item-bar-name" style="color:var(--muted)">No orders yet</span></div>';
+    }
+
+    const restaurantOrderCounts = {};
+    allOrders.forEach((o) => {
+      const name = o.restaurantName || 'Unknown restaurant';
+      restaurantOrderCounts[name] = (restaurantOrderCounts[name] || 0) + 1;
+    });
+    const topRestaurants = Object.entries(restaurantOrderCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const restaurantMax = topRestaurants.length ? topRestaurants[0][1] : 1;
+    const topRestaurantsEl = document.getElementById('top-restaurants-list');
+    if (topRestaurantsEl) {
+      topRestaurantsEl.innerHTML = topRestaurants.length
+        ? topRestaurants.map(([name, count]) => `
+            <div class="item-bar-row">
+              <span class="item-bar-name">${escapeHtml(name)}</span>
+              <div class="item-bar-track"><div class="item-bar-fill" style="width:${Math.round(count / restaurantMax * 100)}%"></div></div>
+              <span class="item-bar-val">${count}</span>
+            </div>`).join('')
+        : '<div class="item-bar-row"><span class="item-bar-name" style="color:var(--muted)">No orders yet</span></div>';
+    }
+
+    // ---- Recent Activity: the 5 most recently placed real orders, instead
+    // of a permanently hardcoded "#1042 / Burger Barn / 2m ago" list. ----
+    const recentOrders = [...allOrders]
+      .filter((o) => o.createdAt && o.createdAt.toDate)
+      .sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate())
+      .slice(0, 5);
+    const activityEl = document.getElementById('recent-activity-list');
+    if (activityEl) {
+      activityEl.innerHTML = recentOrders.length
+        ? recentOrders.map((o) => {
+            const label = o.orderNumber || ('#' + o.docId.slice(0, 6).toUpperCase());
+            const total = Number(o.total || 0);
+            return `
+              <button class="activity-row">
+                <div class="activity-icon order">▤</div>
+                <div class="activity-main">
+                  <div class="activity-title">Order ${escapeHtml(label)} — QAR ${total.toFixed(2)}</div>
+                  <div class="activity-sub">${escapeHtml(o.restaurantName || '—')} → Customer: ${escapeHtml(o.customerName || '—')}</div>
+                </div>
+                <div class="activity-time">${escapeHtml(timeAgo(o.createdAt.toDate()))}</div>
+              </button>`;
+          }).join('')
+        : '<button class="activity-row"><div class="activity-main"><div class="activity-title" style="color:var(--muted)">No orders yet</div></div></button>';
+    }
+
+    // If the admin currently has one of the live-backed resource pages
+    // open, re-render it too — otherwise a change would only show up the
+    // next time they navigate away and back.
+    if (['customers', 'restaurants', 'delivery-boys', 'live-orders', 'order-history'].includes(currentPageKey)) {
+      renderResourcePage(currentPageKey);
+    }
+  }
+
+  async function loadAdmins() {
+    const snap = await db.collection('admins').get();
+    const admins = snap.docs.map((d) => {
+      const a = d.data();
+      return { id: d.id, name: a.name || '—', email: a.email || '—', role: a.role || 'super_admin', testAccount: 'no', status: a.status || 'active' };
+    });
+    replaceAll(DB.admins, admins);
+  }
+
+  // ---- Real-only resource pages: drop Add/Edit, keep View + the
+  // block/suspend toggle which now also writes Firestore. ----
+  function wireRealActions() {
+    RESOURCE_CONFIG.customers.addable = false;
+    RESOURCE_CONFIG.customers.actions = (row) => [
+      { id: 'view', label: 'View', onClick: (r) => openDetailModal(RESOURCE_CONFIG.customers, r) },
+      { id: 'toggle', label: row.status === 'active' ? 'Block' : 'Unblock', tone: row.status === 'active' ? 'danger' : '', onClick: (r) => {
+        confirmAction(`${r.status === 'active' ? 'Block' : 'Unblock'} <strong>${escapeHtml(r.name)}</strong>? They will${r.status === 'active' ? ' immediately lose access to the app.' : ' be able to sign in again.'}`, async () => {
+          const next = r.status === 'active' ? 'blocked' : 'active';
+          await db.collection('users').doc(r.id).set({ isBlocked: next === 'blocked' }, { merge: true });
+          r.status = next;
+          showToast(`${r.name} ${next === 'blocked' ? 'blocked' : 'unblocked'}.`);
+          renderResourcePage('customers');
+        }, { title: 'Update customer status', danger: r.status === 'active' });
+      } },
+    ];
+
+    RESOURCE_CONFIG.restaurants.addable = false;
+    RESOURCE_CONFIG.restaurants.actions = (row) => [
+      { id: 'view', label: 'View', onClick: (r) => openDetailModal(RESOURCE_CONFIG.restaurants, r) },
+      { id: 'toggle', label: row.status === 'active' ? 'Suspend' : 'Activate', tone: row.status === 'active' ? 'danger' : '', onClick: (r) => {
+        confirmAction(`${r.status === 'active' ? 'Suspend' : 'Re-activate'} <strong>${escapeHtml(r.name)}</strong>? Suspending closes it for ordering immediately, separate from the vendor's own open/closed toggle.`, async () => {
+          const next = r.status === 'active' ? 'suspended' : 'active';
+          await db.collection('restaurants').doc(r.id).set({ adminSuspended: next === 'suspended' }, { merge: true });
+          r.status = next;
+          showToast(`${r.name} ${next === 'suspended' ? 'suspended' : 'activated'}.`);
+          renderResourcePage('restaurants');
+        }, { title: 'Update restaurant status', danger: r.status === 'active' });
+      } },
+    ];
+
+    RESOURCE_CONFIG['delivery-boys'].addable = false;
+    RESOURCE_CONFIG['delivery-boys'].actions = (row) => [
+      { id: 'toggle', label: row.status === 'active' ? 'Suspend' : 'Activate', tone: row.status === 'active' ? 'danger' : '', onClick: (r) => {
+        confirmAction(`${r.status === 'active' ? 'Suspend' : 'Re-activate'} <strong>${escapeHtml(r.name)}</strong>?`, async () => {
+          const next = r.status === 'active' ? 'suspended' : 'active';
+          await db.collection('drivers').doc(r.id).set({ isSuspended: next === 'suspended' }, { merge: true });
+          r.status = next;
+          showToast(`${r.name} ${next === 'suspended' ? 'suspended' : 'activated'}.`);
+          renderResourcePage('delivery-boys');
+        }, { title: 'Update driver status', danger: r.status === 'active' });
+      } },
+    ];
+
+    // Live/history orders: real data, but state changes belong to the
+    // vendor/driver apps' own flow (escrow, notifications, etc.) — admin
+    // gets visibility only, no override actions, to avoid desyncing them.
+    RESOURCE_CONFIG['live-orders'].actions = (row) => [
+      { id: 'view', label: 'View', onClick: (r) => openDetailModal(RESOURCE_CONFIG['live-orders'], r) },
+    ];
+    RESOURCE_CONFIG['order-history'].actions = (row) => [
+      { id: 'view', label: 'View', onClick: (r) => openDetailModal(RESOURCE_CONFIG['order-history'], r) },
+    ];
+
+    // Roles: real admins collection. Add-new-admin via the form is not
+    // wired yet (flagged to the user) — suspend/activate is real.
+    RESOURCE_CONFIG.roles.addable = false;
+    RESOURCE_CONFIG.roles.actions = (row) => [
+      { id: 'toggle', label: row.status === 'active' ? 'Suspend' : 'Activate', tone: row.status === 'active' ? 'danger' : '', onClick: (r) => {
+        if (r.email === currentAdminEmail) { showToast("You can't suspend your own admin access."); return; }
+        confirmAction(`${r.status === 'active' ? 'Suspend' : 'Re-activate'} <strong>${escapeHtml(r.name)}</strong>'s admin access?`, async () => {
+          const next = r.status === 'active' ? 'suspended' : 'active';
+          await db.collection('admins').doc(r.id).set({ status: next }, { merge: true });
+          r.status = next;
+          showToast(`${r.name} ${next === 'suspended' ? 'suspended' : 'activated'}.`);
+          renderResourcePage('roles');
+        }, { title: 'Update admin access', danger: r.status === 'active' });
+      } },
+    ];
+  }
+
+  // Pages still on prototype demo data — shown with a banner.
+  const DEMO_PAGES = new Set(['disputes', 'foods', 'categories', 'cuisine', 'offers', 'owners',
+    'onboarding', 'delivery-onboarding', 'payouts', 'commission', 'revenue', 'banners', 'documents']);
+  const originalNavigateTo = navigateTo;
+  navigateTo = function (pageKey) {
+    originalNavigateTo(pageKey);
+    const demoBanner = document.getElementById('demo-banner');
+    if (demoBanner) demoBanner.style.display = DEMO_PAGES.has(pageKey) ? '' : 'none';
+  };
+
+  let currentAdminEmail = null;
+
+  async function checkAdminAndEnter(user) {
+    const adminsCol = db.collection('admins');
+    // No client-side self-bootstrap anymore — Firestore rules reject any
+    // client attempt to create an admins/{uid} doc, full stop (see
+    // firestore.rules). Admin accounts are provisioned exclusively via
+    // scripts/bootstrap_admin.js, which uses the Firebase Admin SDK and a
+    // service-account key this browser bundle never has access to. If this
+    // read comes back empty, the account genuinely isn't an admin yet.
+    const adminDoc = await adminsCol.doc(user.uid).get();
+
+    if (!adminDoc.exists || adminDoc.data().status !== 'active') {
+      errorEl.textContent = 'This account is not an authorized admin. Ask a super admin to grant access.';
+      teardownLiveListeners();
+      await auth.signOut();
+      return;
+    }
+
+    currentAdminEmail = user.email;
+    document.body.classList.add('authed');
+    overlay.style.display = 'none';
+    document.querySelector('.admin-name').textContent = adminDoc.data().name || user.email;
+    document.getElementById('admin-role-label').textContent = ROLE_LABEL[adminDoc.data().role] || 'Admin';
+
+    wireRealActions();
+    try {
+      await Promise.all([loadRealData(), loadAdmins()]);
+    } catch (e) {
+      console.error('[Admin] data load failed', e);
+      showToast('Some live data failed to load — check console.');
+    }
+    updateNavBadges();
+    navigateTo(currentPageKey || 'dashboard');
+  }
+
+  auth.onAuthStateChanged((user) => {
+    if (user) {
+      checkAdminAndEnter(user);
+    } else {
+      // Logged out (or never logged in) — make sure no listener from a
+      // previous session keeps writing into the dashboard.
+      teardownLiveListeners();
+    }
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorEl.textContent = '';
+    errorEl.style.color = '#c62828';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Signing in…';
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    try {
+      await auth.signInWithEmailAndPassword(email, password);
+    } catch (err) {
+      if (err.code === 'auth/user-not-found' && OWNER_EMAILS.includes(email.toLowerCase())) {
+        // First-ever run: the owner account may not exist in Firebase Auth
+        // yet (e.g. brand-new project) — create it on the spot.
+        try {
+          await auth.createUserWithEmailAndPassword(email, password);
+        } catch (createErr) {
+          errorEl.textContent = createErr.message || 'Could not sign in.';
+        }
+      } else {
+        errorEl.textContent = err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password'
+          ? 'Incorrect email or password.'
+          : (err.message || 'Could not sign in.');
+      }
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Sign In';
+    }
+  });
+
+  document.getElementById('login-forgot').addEventListener('click', async () => {
+    const email = document.getElementById('login-email').value.trim();
+    if (!email) { errorEl.textContent = 'Enter your email above first.'; return; }
+    errorEl.style.color = '#1b5e20';
+    try {
+      await auth.sendPasswordResetEmail(email);
+      errorEl.textContent = `Reset link sent to ${email} — check your inbox.`;
+    } catch (err) {
+      errorEl.style.color = '#c62828';
+      errorEl.textContent = err.message || 'Could not send reset email.';
+    }
+  });
+})();
+</script>
+</body>
+</html>

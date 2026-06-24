@@ -1,0 +1,10 @@
+{
+  "name": "uni-eats-admin-scripts",
+  "private": true,
+  "version": "1.0.0",
+  "description": "One-off privileged scripts that require the Firebase Admin SDK (service-account key) instead of a client SDK. Never deploy this directory to Hosting.",
+  "type": "commonjs",
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

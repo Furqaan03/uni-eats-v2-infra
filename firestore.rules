@@ -1,0 +1,387 @@
+rules_version = '2';
+
+// =============================================================================
+// Uni Eats v2 — Firestore Security Rules
+// =============================================================================
+// Project: uni-eats-v2-aabf5
+// Apps: uni-eats-v2-main (customer), uni_eats_driver (driver),
+//       unieats_vendor (vendor), admin-dashboard (web admin)
+//
+// unieats_vendor now uses real Firebase Auth (lib/core/providers/auth_provider.dart).
+// Vendor profile/ownership lives in vendors/{uid}, keyed by Firebase Auth uid —
+// per-vendor write isolation below is enforced against that doc.
+//
+// REMAINING GAP: lib/services/firestore_order_service.dart still has a
+// hardcoded `kVendorId` fallback constant used before login overrides it on a
+// fresh install — that's an app-side default, not a rules concern, since these
+// rules require the real request.auth.uid's vendors/{uid}.restaurantId to
+// match regardless of what the client *displays* before login.
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'super_admin';
+    }
+
+    // The restaurantId the signed-in vendor owns, per their vendors/{uid} doc.
+    // Returns null (never matches a real restaurantId) if not a vendor.
+    function vendorRestaurantId() {
+      return isSignedIn() && exists(/databases/$(database)/documents/vendors/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/vendors/$(request.auth.uid)).data.restaurantId
+        : null;
+    }
+
+    function isVendorOf(restaurantId) {
+      return isSignedIn() && vendorRestaurantId() == restaurantId;
+    }
+
+    // ---------------------------------------------------------------------
+    // users/{uid}
+    // Customer profile. Doc ID == Firebase Auth uid.
+    // fields: name, email, phone, universityId, role, loyaltyPoints,
+    //         dietaryPreferences, avatarUrl, isBlocked, createdAt
+    // ---------------------------------------------------------------------
+    match /users/{userId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+
+      // Owner can create/update their own doc, but cannot self-unblock.
+      allow create: if isSignedIn() && request.auth.uid == userId &&
+        (!('isBlocked' in request.resource.data) || request.resource.data.isBlocked == false);
+
+      allow update: if isAdmin() ||
+        (isSignedIn() && request.auth.uid == userId &&
+          // owner cannot flip their own isBlocked flag
+          request.resource.data.isBlocked == resource.data.isBlocked);
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // drivers/{uid}
+    // Driver profile. Doc ID == Firebase Auth uid.
+    // fields: name, isOnline, fcmToken, isSuspended, earnings stats
+    // ---------------------------------------------------------------------
+    match /drivers/{driverId} {
+      // Customers/vendors need to see online drivers; keep read open to any
+      // signed-in user, full scan for admin.
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() && request.auth.uid == driverId;
+
+      allow update: if isAdmin() ||
+        (isSignedIn() && request.auth.uid == driverId &&
+          // driver cannot lift their own suspension
+          request.resource.data.isSuspended == resource.data.isSuspended);
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // orders/{orderId}
+    // Doc ID is a caller-supplied custom ID (NOT auto-id, NOT uid).
+    // fields: id, userId, vendorId, driverId, customerName, restaurantName,
+    //         items[], subtotal, deliveryFee, total, status, orderType,
+    //         deliveryAddress, createdAt, estimatedDelivery, driverName,
+    //         driverAtRestaurant, paymentStatus
+    // ---------------------------------------------------------------------
+    match /orders/{orderId} {
+      allow read: if isAdmin() ||
+        (isSignedIn() &&
+          (resource.data.userId == request.auth.uid ||
+           resource.data.driverId == request.auth.uid ||
+           isVendorOf(resource.data.vendorId)));
+
+      // Customer creates an order for themselves only.
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'placed' &&
+        (!('driverId' in request.resource.data) || request.resource.data.driverId == null);
+
+      // Updates: scoped by role + restricted to legitimate status transitions.
+      allow update: if isAdmin() ||
+        // Customer may only cancel their own pending order. 'awaitingDriver'
+        // was missing here — the customer-facing "no drivers available"
+        // banner's Cancel button writes status:'cancelled' while the order
+        // is still 'awaitingDriver', and without this the write was
+        // PERMISSION_DENIED'd silently: the customer app showed "cancelled"
+        // from its own optimistic local update, but Firestore never
+        // actually changed, so the order kept sitting live in the vendor
+        // app's "Awaiting Driver" list forever.
+        (isSignedIn() && resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.status == 'cancelled' &&
+          resource.data.status in ['placed', 'preparing', 'awaitingDriver']) ||
+
+        // Driver claims an unassigned 'ready' delivery order — must set
+        // driverId to themselves, cannot reassign someone else's order.
+        (isSignedIn() && resource.data.status == 'ready' &&
+          resource.data.orderType == 'delivery' &&
+          resource.data.driverId == null &&
+          request.resource.data.driverId == request.auth.uid &&
+          request.resource.data.status == 'assigned') ||
+
+        // Driver already assigned to this order advances its own delivery.
+        (isSignedIn() && resource.data.driverId == request.auth.uid &&
+          request.resource.data.driverId == resource.data.driverId &&
+          request.resource.data.status in
+            ['pickedUp', 'enRoute', 'delivered'] &&
+          resource.data.status in
+            ['assigned', 'pickedUp', 'enRoute']) ||
+
+        // Vendor owning this order progresses it through accept/prep/ready/
+        // delivered/pickedUp, or rejects it (cancelled) — but may not touch
+        // userId/items/totals/driverId. Must include every status the
+        // vendor app's advanceOrder/cancelOrder actually write (see
+        // vendor_provider.dart _toFirestoreStatus): 'awaitingDriver' for a
+        // freshly-accepted delivery order and 'cancelled' for a rejection
+        // were missing here, which silently PERMISSION_DENIED'd every
+        // Accept/Reject tap in the vendor app.
+        //
+        // The vendor app's own UI (order_detail_screen.dart's `canCancel`)
+        // also allows rejecting an order while it's already 'awaitingDriver'
+        // (still waiting on a driver to pick it up, including the
+        // no-drivers-available case) — that source status was missing from
+        // this list, so the cancel button silently failed with
+        // PERMISSION_DENIED at exactly the moment vendors most needed it.
+        (isVendorOf(resource.data.vendorId) &&
+          request.resource.data.vendorId == resource.data.vendorId &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.items == resource.data.items &&
+          request.resource.data.total == resource.data.total &&
+          request.resource.data.driverId == resource.data.driverId &&
+          request.resource.data.status in
+            ['awaitingDriver', 'preparing', 'ready', 'delivered', 'pickedUp', 'cancelled'] &&
+          resource.data.status in ['placed', 'preparing', 'ready', 'awaitingDriver']) ||
+
+        // Any signed-in driver may record that they declined an unassigned
+        // delivery order, and (once every online driver has done the same)
+        // flag it as having no available drivers — declining doesn't
+        // require being the order's assigned driver, since there isn't one
+        // yet. Scoped to exactly the fields
+        // recordDeclineAndCheckAvailability writes so a driver can't use
+        // this branch to touch anything else.
+        (isSignedIn() &&
+          resource.data.orderType == 'delivery' &&
+          resource.data.driverId == null &&
+          resource.data.status in ['awaitingDriver', 'ready'] &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['declinedDriverIds', 'noDriversAvailable', 'noDriversAvailableAt'])) ||
+
+        // Customer switches their own stuck "no drivers available" delivery
+        // order to pickup (uni-eats-v2-main's switchOrderToPickup) — only
+        // when the order already carries that flag, and only to flip
+        // orderType/deliveryFee/total and clear the flag. Status, items,
+        // driverId, userId untouched.
+        (isSignedIn() && resource.data.userId == request.auth.uid &&
+          resource.data.noDriversAvailable == true &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.status == resource.data.status &&
+          request.resource.data.orderType == 'pickup' &&
+          request.resource.data.noDriversAvailable == false &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['orderType', 'deliveryFee', 'total', 'noDriversAvailable'])) ||
+
+        // Customer resolves their own order's wallet escrow hold — captures
+        // it once the order has actually been accepted (held -> captured,
+        // written atomically with the wallet debit by
+        // captureOrderPayment/wallet_provider.dart), or releases it if the
+        // order was cancelled before acceptance (held -> released). Scoped
+        // to paymentStatus only — nothing else about the order can move.
+        //
+        // THIS BRANCH WAS MISSING ENTIRELY: every customer-side capture
+        // write was silently PERMISSION_DENIED'd, so paymentStatus stayed
+        // 'held' forever no matter how many times the order advanced. Every
+        // fresh app launch re-ran escrow resolution, saw 'held' again, and
+        // re-deducted the wallet for the same order all over again —
+        // driving the balance further negative on every single relaunch.
+        (isSignedIn() && resource.data.userId == request.auth.uid &&
+          resource.data.paymentStatus == 'held' &&
+          request.resource.data.paymentStatus in ['captured', 'released'] &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus']));
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // restaurants/{restaurantId}
+    // fields: name, location, isOpen, isBusy
+    // Doc ID == hardcoded kVendorId constant in vendor app, NOT a uid.
+    // ---------------------------------------------------------------------
+    match /restaurants/{restaurantId} {
+      allow read: if true; // customer app browses restaurants unauthenticated/authenticated
+      allow write: if isAdmin() || isVendorOf(restaurantId);
+    }
+
+    // ---------------------------------------------------------------------
+    // menuAvailability/{restaurantId}
+    // doc: map { itemId: bool }
+    // ---------------------------------------------------------------------
+    match /menuAvailability/{restaurantId} {
+      allow read: if true;
+      allow write: if isAdmin() || isVendorOf(restaurantId);
+    }
+
+    // ---------------------------------------------------------------------
+    // menus/{restaurantId}/items/{itemId}
+    // item doc ID == data['id'] supplied by caller
+    // ---------------------------------------------------------------------
+    match /menus/{restaurantId}/items/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin() || isVendorOf(restaurantId);
+    }
+
+    // ---------------------------------------------------------------------
+    // vendors/{uid}
+    // Vendor profile. Doc ID == Firebase Auth uid.
+    // fields: email, restaurantId, restaurantName, restaurantLocation,
+    //         authProvider, createdAt
+    // ---------------------------------------------------------------------
+    match /vendors/{vendorUid} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == vendorUid);
+
+      // Vendor creates only their own profile, and cannot grant themselves
+      // a restaurant they don't already legitimately own — restaurantId is
+      // fixed at creation by the signup flow, not later mutable to anything.
+      allow create: if isSignedIn() && request.auth.uid == vendorUid;
+
+      // restaurantId is immutable after creation — prevents a vendor from
+      // reassigning themselves to a different restaurant's data.
+      allow update: if isAdmin() ||
+        (isSignedIn() && request.auth.uid == vendorUid &&
+          request.resource.data.restaurantId == resource.data.restaurantId);
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // wallets/{userId}
+    // fields: balance, ...
+    // Doc ID == userId (should equal Firebase Auth uid).
+    // ---------------------------------------------------------------------
+    match /wallets/{userId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+
+      match /transactions/{txId} {
+        allow read: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+        // Transactions are an append-only ledger from the owner's perspective.
+        allow create: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // vendorAccounts/{emailKey}  — LEGACY, no longer written by the app.
+    // Superseded by vendors/{uid} above (real Firebase Auth migration).
+    // May still contain old plaintext-password docs from before the
+    // migration; keep fully locked down until manually deleted.
+    // ---------------------------------------------------------------------
+    match /vendorAccounts/{emailKey} {
+      allow read, write: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // admins/{uid}
+    // fields: name, email, role (super_admin/operations/finance/support/qa),
+    //         status, createdAt
+    // Doc ID == Firebase Auth uid.
+    // ---------------------------------------------------------------------
+    match /admins/{adminUid} {
+      allow read: if isAdmin();
+
+      // No client-side path to create an admin doc, period — not even for
+      // a non-super_admin role. The previous version of this rule let ANY
+      // signed-in user (e.g. a customer account from the user app) write
+      // their own admins/{uid} doc with a non-super_admin role and
+      // instantly gain isAdmin() read access to users/orders/drivers/
+      // vendors/admins. There is no client-supplied data this rule could
+      // check to prevent that — the admin-dashboard's OWNER_EMAILS list is
+      // a JS constant rules can't see, so it was never a real gate.
+      //
+      // Admin accounts are now provisioned exclusively out-of-band via the
+      // Firebase Admin SDK (see scripts/bootstrap_admin.js), which requires
+      // a service-account key only the project owner holds and a browser
+      // can never obtain — that's the actual server-side authorization
+      // boundary. The Admin SDK bypasses these rules entirely, so this
+      // match block only needs to block every *client* path.
+      allow create: if false;
+
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // orderDeclines/{autoId}
+    // fields: orderId, driverId, driverName, reason, declinedAt
+    // Doc ID: auto-id via .add()
+    // ---------------------------------------------------------------------
+    match /orderDeclines/{declineId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && request.resource.data.driverId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // ratings/{orderId}
+    // Doc ID == the order's ID — enforces exactly one rating per order and
+    // lets us verify against the real order doc via get() below, instead of
+    // trusting whatever the client claims about which order this is for.
+    // fields: orderId, userId, vendorId, driverId (null for pickup orders),
+    //         vendorRating (1-5), vendorComment, driverRating (1-5, optional),
+    //         driverComment, createdAt
+    //
+    // No running aggregate (ratingSum/ratingCount) is kept on drivers/{uid}
+    // or restaurants/{id} — that would require the *customer's* client to
+    // write to a doc they don't own, which is exactly the kind of cross-role
+    // write this rules file otherwise refuses to allow. Driver/vendor apps
+    // instead compute their own average by querying this collection
+    // (where driverId/vendorId == their own id) at read time — same real
+    // data, no extra trust boundary to get wrong.
+    // ---------------------------------------------------------------------
+    match /ratings/{orderId} {
+      allow read: if isAdmin() ||
+        (isSignedIn() &&
+          (resource.data.userId == request.auth.uid ||
+           resource.data.driverId == request.auth.uid ||
+           isVendorOf(resource.data.vendorId)));
+
+      // Only the customer who placed this exact order can rate it, only
+      // once it's actually delivered, and only for the order they claim —
+      // userId/vendorId/driverId on the rating must match the real order
+      // doc, not just whatever the client sends.
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.orderId == orderId &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.status == 'delivered' &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.vendorId == request.resource.data.vendorId &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.driverId == request.resource.data.driverId &&
+        request.resource.data.vendorRating is int &&
+        request.resource.data.vendorRating >= 1 && request.resource.data.vendorRating <= 5;
+
+      // Ratings are immutable from any client once submitted — prevents a
+      // customer from quietly editing a bad rating after the fact, or a
+      // driver/vendor from tampering with one they can read.
+      allow update, delete: if isAdmin();
+    }
+
+    // Deny everything else by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,15 @@
+# The three Flutter apps are separate git repos with their own GitHub
+# remotes (uni-eats-v2-user/driver/vendor) — never track them here.
+/uni-eats-v2-main/
+/uni_eats_driver/
+/unieats_vendor/
+
+# Dependencies / build output for the shared infra pieces that do live here.
+node_modules/
+admin-dashboard/build/
+.firebase/
+
+# Secrets — never commit service-account keys.
+*.json.key
+serviceAccountKey.json
+.env
