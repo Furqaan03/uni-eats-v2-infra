@@ -89,6 +89,15 @@ service cloud.firestore {
           request.resource.data.isSuspended == resource.data.isSuspended);
 
       allow delete: if isAdmin();
+
+      // drivers/{uid}/private/bankDetails
+      // Payout bank info (card name, IBAN, mobile) — deliberately NOT on the
+      // parent doc above, since that doc is readable by any signed-in user
+      // (customers/vendors need online-status visibility). Financial
+      // details get their own locked-down subdocument instead.
+      match /private/bankDetails {
+        allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == driverId);
+      }
     }
 
     // ---------------------------------------------------------------------
@@ -107,10 +116,37 @@ service cloud.firestore {
            isVendorOf(resource.data.vendorId)));
 
       // Customer creates an order for themselves only.
+      //
+      // Pricing fields (subtotal/deliveryFee/discount/total) previously had
+      // no validation at all beyond existing as numbers — a client could
+      // place a real order with items worth QAR 100 but total: 0.01, and
+      // since the wallet's hold/capture amount is read straight off the
+      // order's `total` field, that's a direct pay-nothing exploit, not
+      // just a display glitch. This can't fully verify subtotal against the
+      // real menu (rules can't iterate the items array against menus/{id}
+      // without per-item get() calls this app's items list doesn't bound),
+      // but it does close the specific "total doesn't match the order's own
+      // declared subtotal/fee/discount" gap, and pins deliveryFee to the
+      // only two legitimate values (0 for pickup, the flat kDeliveryFee for
+      // delivery — see checkout_screen.dart).
       allow create: if isSignedIn() &&
         request.resource.data.userId == request.auth.uid &&
         request.resource.data.status == 'placed' &&
-        (!('driverId' in request.resource.data) || request.resource.data.driverId == null);
+        (!('driverId' in request.resource.data) || request.resource.data.driverId == null) &&
+        request.resource.data.subtotal is number &&
+        request.resource.data.subtotal > 0 &&
+        request.resource.data.deliveryFee in [0, 5] &&
+        (!('discount' in request.resource.data) ||
+          (request.resource.data.discount is number &&
+           request.resource.data.discount >= 0 &&
+           request.resource.data.discount <= request.resource.data.subtotal)) &&
+        request.resource.data.total is number &&
+        request.resource.data.total >= (request.resource.data.subtotal +
+          request.resource.data.deliveryFee -
+          (('discount' in request.resource.data) ? request.resource.data.discount : 0)) - 0.01 &&
+        request.resource.data.total <= (request.resource.data.subtotal +
+          request.resource.data.deliveryFee -
+          (('discount' in request.resource.data) ? request.resource.data.discount : 0)) + 0.01;
 
       // Updates: scoped by role + restricted to legitimate status transitions.
       allow update: if isAdmin() ||
@@ -135,6 +171,19 @@ service cloud.firestore {
           request.resource.data.driverId == request.auth.uid &&
           request.resource.data.status == 'assigned') ||
 
+        // Driver claims an unassigned 'awaitingDriver' order — this is the
+        // common claim path (acceptOrder() in the driver app's
+        // firestore_order_service.dart writes exactly this transition) and
+        // is what actually starts the kitchen. THIS BRANCH WAS MISSING
+        // ENTIRELY — every claim of a freshly-accepted order (i.e. almost
+        // every delivery order, since 'ready' orders with no driver are the
+        // rare defensive-fallback case) was silently PERMISSION_DENIED'd.
+        (isSignedIn() && resource.data.status == 'awaitingDriver' &&
+          resource.data.orderType == 'delivery' &&
+          resource.data.driverId == null &&
+          request.resource.data.driverId == request.auth.uid &&
+          request.resource.data.status == 'preparing') ||
+
         // Driver already assigned to this order advances its own delivery.
         (isSignedIn() && resource.data.driverId == request.auth.uid &&
           request.resource.data.driverId == resource.data.driverId &&
@@ -142,6 +191,31 @@ service cloud.firestore {
             ['pickedUp', 'enRoute', 'delivered'] &&
           resource.data.status in
             ['assigned', 'pickedUp', 'enRoute']) ||
+
+        // Driver already assigned marks arrival at the restaurant —
+        // driverAtRestaurant only, status untouched (see ORDER_LIFECYCLE.md:
+        // arrival is deliberately not folded into `status`, since the driver
+        // can get there before the kitchen finishes). THIS BRANCH WAS ALSO
+        // MISSING — markArrivedAtRestaurant's status-unchanged write matched
+        // no existing branch, since the "advances its own delivery" branch
+        // above requires status to move forward.
+        (isSignedIn() && resource.data.driverId == request.auth.uid &&
+          request.resource.data.status == resource.data.status &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['driverAtRestaurant'])) ||
+
+        // Driver already assigned abandons the delivery before pickup — puts
+        // it back in the available-orders pool for another driver to claim.
+        // Scoped to before 'pickedUp': once the driver physically has the
+        // food, abandoning needs a real return-to-restaurant flow, not just
+        // a status rollback, so it's deliberately not allowed past this
+        // point.
+        (isSignedIn() && resource.data.driverId == request.auth.uid &&
+          resource.data.status in ['preparing', 'ready', 'assigned'] &&
+          request.resource.data.status == 'awaitingDriver' &&
+          request.resource.data.driverId == null &&
+          request.resource.data.driverName == null &&
+          request.resource.data.driverAtRestaurant == false) ||
 
         // Vendor owning this order progresses it through accept/prep/ready/
         // delivered/pickedUp, or rejects it (cancelled) — but may not touch
@@ -224,7 +298,24 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     match /restaurants/{restaurantId} {
       allow read: if true; // customer app browses restaurants unauthenticated/authenticated
-      allow write: if isAdmin() || isVendorOf(restaurantId);
+
+      // Normal vendor edits to their own restaurant (existing path).
+      //
+      // Plus: a one-time ownership claim — `vendors/{vendorUid}` create
+      // (below) requires this restaurant doc's `ownerUid` to already equal
+      // the signer's uid, so the vendor app's signup flow claims it here
+      // FIRST. Scoped to writing only `ownerUid`, and only while it doesn't
+      // already belong to someone else — this is what actually stops a
+      // second vendor account from claiming a restaurant that already has
+      // an owner; `isVendorOf` alone never checked that, it only trusted
+      // whatever restaurantId a vendor doc claimed for itself.
+      allow write: if isAdmin() || isVendorOf(restaurantId) ||
+        (isSignedIn() &&
+          (resource == null || !('ownerUid' in resource.data) || resource.data.ownerUid == null) &&
+          request.resource.data.ownerUid == request.auth.uid &&
+          (resource == null
+            ? request.resource.data.keys().hasOnly(['ownerUid'])
+            : request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid'])));
     }
 
     // ---------------------------------------------------------------------
@@ -254,10 +345,18 @@ service cloud.firestore {
     match /vendors/{vendorUid} {
       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == vendorUid);
 
-      // Vendor creates only their own profile, and cannot grant themselves
-      // a restaurant they don't already legitimately own — restaurantId is
-      // fixed at creation by the signup flow, not later mutable to anything.
-      allow create: if isSignedIn() && request.auth.uid == vendorUid;
+      // Vendor creates only their own profile. Also requires the
+      // restaurants/{restaurantId} ownership claim (above) to already be
+      // theirs — previously this only checked request.auth.uid == vendorUid,
+      // so ANY signed-in user could create a vendors/{their_uid} doc
+      // pointing restaurantId at a restaurant someone else already runs,
+      // and isVendorOf() would then trust them too: full read of that
+      // restaurant's orders (customer PII, totals) plus write access to its
+      // menu/availability. The signup flow (auth_provider.dart) now claims
+      // the restaurant doc first, in a separate write, before this one.
+      allow create: if isSignedIn() && request.auth.uid == vendorUid &&
+        get(/databases/$(database)/documents/restaurants/$(request.resource.data.restaurantId))
+          .data.ownerUid == request.auth.uid;
 
       // restaurantId is immutable after creation — prevents a vendor from
       // reassigning themselves to a different restaurant's data.
