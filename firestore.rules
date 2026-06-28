@@ -50,6 +50,22 @@ service cloud.firestore {
       return isSignedIn() && vendorRestaurantId() == restaurantId;
     }
 
+    // True if `discount` is exactly what `voucherCode` actually earns against
+    // `subtotal`, per the real vouchers/{code} doc — not just any number
+    // <= subtotal the client feels like sending. Closes the "discount field
+    // accepted with no proof a real voucher justified it" gap: previously a
+    // client could write discount: subtotal (100% off) with no voucher at
+    // all, since the only check was discount <= subtotal.
+    function isValidVoucherDiscount(voucherCode, subtotal, discount, vendorId) {
+      let voucher = get(/databases/$(database)/documents/vouchers/$(voucherCode)).data;
+      let raw = voucher.type == 'percent' ? (subtotal * voucher.value / 100) : voucher.value;
+      let expected = raw > subtotal ? subtotal : raw;
+      return voucher.active == true &&
+        voucher.restaurantId == vendorId &&
+        subtotal >= voucher.min &&
+        discount >= expected - 0.01 && discount <= expected + 0.01;
+    }
+
     // ---------------------------------------------------------------------
     // users/{uid}
     // Customer profile. Doc ID == Firebase Auth uid.
@@ -136,10 +152,21 @@ service cloud.firestore {
         request.resource.data.subtotal is number &&
         request.resource.data.subtotal > 0 &&
         request.resource.data.deliveryFee in [0, 5] &&
-        (!('discount' in request.resource.data) ||
-          (request.resource.data.discount is number &&
-           request.resource.data.discount >= 0 &&
-           request.resource.data.discount <= request.resource.data.subtotal)) &&
+        // No voucherCode -> discount must be exactly zero (closes the
+        // "free-form discount, no voucher required" gap). With a
+        // voucherCode, the discount must match what that real voucher doc
+        // actually earns against this order's own subtotal.
+        (
+          (!('voucherCode' in request.resource.data) &&
+            (!('discount' in request.resource.data) || request.resource.data.discount == 0)) ||
+          ('voucherCode' in request.resource.data &&
+            request.resource.data.discount is number &&
+            isValidVoucherDiscount(
+              request.resource.data.voucherCode,
+              request.resource.data.subtotal,
+              request.resource.data.discount,
+              request.resource.data.vendorId))
+        ) &&
         request.resource.data.total is number &&
         request.resource.data.total >= (request.resource.data.subtotal +
           request.resource.data.deliveryFee -
@@ -299,23 +326,44 @@ service cloud.firestore {
     match /restaurants/{restaurantId} {
       allow read: if true; // customer app browses restaurants unauthenticated/authenticated
 
-      // Normal vendor edits to their own restaurant (existing path).
-      //
-      // Plus: a one-time ownership claim — `vendors/{vendorUid}` create
-      // (below) requires this restaurant doc's `ownerUid` to already equal
-      // the signer's uid, so the vendor app's signup flow claims it here
-      // FIRST. Scoped to writing only `ownerUid`, and only while it doesn't
-      // already belong to someone else — this is what actually stops a
-      // second vendor account from claiming a restaurant that already has
-      // an owner; `isVendorOf` alone never checked that, it only trusted
-      // whatever restaurantId a vendor doc claimed for itself.
-      allow write: if isAdmin() || isVendorOf(restaurantId) ||
+      // Normal vendor edits to their own restaurant (existing path) — but
+      // `name` is carved out: a vendor can change location/hours/category/
+      // etc. freely, but not the restaurant's displayed name. That now
+      // requires a nameChangeRequests/{id} doc an admin approves (see below)
+      // — name only ever moves via isAdmin() or that approval flow writing
+      // it directly, never from this branch.
+      allow write: if isAdmin() || (isVendorOf(restaurantId) &&
+        (resource == null || !('name' in request.resource.data) ||
+          request.resource.data.name == resource.data.name)) ||
         (isSignedIn() &&
           (resource == null || !('ownerUid' in resource.data) || resource.data.ownerUid == null) &&
           request.resource.data.ownerUid == request.auth.uid &&
           (resource == null
             ? request.resource.data.keys().hasOnly(['ownerUid'])
             : request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid'])));
+    }
+
+    // ---------------------------------------------------------------------
+    // nameChangeRequests/{requestId}
+    // fields: restaurantId, requestedName, requestedBy (uid), status
+    //         ('pending'|'approved'|'rejected'), createdAt, reviewedAt,
+    //         reviewedBy
+    // Doc ID: caller-supplied (uuid). A vendor can only ever create one of
+    // these and read their own restaurant's requests — actually applying
+    // the name change is an admin action (writes restaurants/{id}.name
+    // directly via isAdmin(), then marks this request approved), since
+    // nothing here can grant a client the ability to write someone else's
+    // field as a side effect of approving its own request.
+    // ---------------------------------------------------------------------
+    match /nameChangeRequests/{requestId} {
+      allow read: if isAdmin() || (isSignedIn() && isVendorOf(resource.data.restaurantId));
+
+      allow create: if isSignedIn() &&
+        isVendorOf(request.resource.data.restaurantId) &&
+        request.resource.data.requestedBy == request.auth.uid &&
+        request.resource.data.status == 'pending';
+
+      allow update, delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------------
@@ -382,6 +430,83 @@ service cloud.firestore {
         allow create: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
         allow update, delete: if isAdmin();
       }
+    }
+
+    // ---------------------------------------------------------------------
+    // vouchers/{code}
+    // fields: type ('percent'|'flat'), value (number), min (number),
+    //         active (bool), restaurantId (string)
+    // Doc ID == the voucher code itself (uppercased). A vendor may create or
+    // edit a code for their own restaurant only (restaurantId pinned to
+    // their vendors/{uid}.restaurantId, immutable after creation so they
+    // can't reassign someone else's code to themselves) — admin can manage
+    // any code. Read is public (signed-in) so checkout can show a real
+    // "invalid code" vs. server round-trip; the actual enforcement at
+    // order-creation time is isValidVoucherDiscount() above, which also
+    // checks restaurantId matches the order's own vendorId.
+    // ---------------------------------------------------------------------
+    match /vouchers/{code} {
+      allow read: if isSignedIn();
+
+      allow create: if isAdmin() ||
+        (isSignedIn() && request.resource.data.restaurantId == vendorRestaurantId());
+
+      allow update: if isAdmin() ||
+        (isSignedIn() &&
+          request.resource.data.restaurantId == vendorRestaurantId() &&
+          resource.data.restaurantId == vendorRestaurantId());
+
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.restaurantId == vendorRestaurantId());
+    }
+
+    // ---------------------------------------------------------------------
+    // userDirectory/{key}
+    // fields: uid (string)
+    // Doc ID == lowercased email or universityId. Lets a wallet transfer
+    // resolve "who is qar.email@example.com" without querying users/{uid}
+    // directly (that collection's read is locked to admin/self). Exposes
+    // only a uid pointer — no name/email/PII readable from this doc.
+    // ---------------------------------------------------------------------
+    match /userDirectory/{key} {
+      allow read: if isSignedIn();
+      // Only the uid being pointed at may claim a key, and only for
+      // themselves — prevents squatting another user's email/ID pointer.
+      allow create, update: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // walletTransfers/{transferId}
+    // fields: fromUserId, toUserId, amount, status ('pending'|'completed'),
+    //         createdAt, completedAt
+    // Doc ID: caller-supplied (uuid). A transfer never writes the
+    // recipient's wallet directly from the sender's client — wallets/{uid}
+    // write is locked to its own owner below, so the sender opens this
+    // pending doc instead, and the recipient's own client claims it into
+    // their wallet (see claimIncomingTransfer in firestore_order_service.dart).
+    // ---------------------------------------------------------------------
+    match /walletTransfers/{transferId} {
+      allow read: if isAdmin() ||
+        (isSignedIn() &&
+          (resource.data.fromUserId == request.auth.uid ||
+           resource.data.toUserId == request.auth.uid));
+
+      allow create: if isSignedIn() &&
+        request.resource.data.fromUserId == request.auth.uid &&
+        request.resource.data.toUserId != request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0;
+
+      // Recipient claims their own pending transfer — only status/completedAt
+      // may change, and only from pending -> completed.
+      allow update: if isAdmin() ||
+        (isSignedIn() && resource.data.toUserId == request.auth.uid &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status == 'completed' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt']));
+
+      allow delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------------

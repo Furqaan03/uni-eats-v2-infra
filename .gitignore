@@ -9,7 +9,12 @@ node_modules/
 admin-dashboard/build/
 .firebase/
 
-# Secrets — never commit service-account keys.
+# Secrets — never commit service-account keys. The bare *serviceaccount*.json
+# pattern (not just the one exact filename above) catches anything a
+# developer names like firebase-admin-key.json or my-service-account.json,
+# wherever in the repo it's saved.
 *.json.key
 serviceAccountKey.json
+*[Ss]erviceAccount*.json
+*service-account*.json
 .env
