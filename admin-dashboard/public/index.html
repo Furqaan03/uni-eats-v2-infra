@@ -655,6 +655,7 @@
       </button>
       <div class="nav-sub-list"><div class="nav-sub-list-inner">
         <button class="nav-sub-item" data-page="roles" data-title="Role & Access Management" data-sub="Admin accounts, roles and test-account flags">Role & Access Management</button>
+        <button class="nav-sub-item" data-page="nameRequests" data-title="Name Change Requests" data-sub="Vendor-submitted restaurant rename requests awaiting approval">Name Change Requests</button>
       </div></div>
     </div>
 
@@ -1096,7 +1097,10 @@
       { id: 'AD-04', name: 'Maya Haddad', email: 'maya.support@unieats.qa', role: 'support', testAccount: 'no', status: 'active' },
       { id: 'AD-05', name: 'QA Runner 01', email: 'qa01@unieats.qa', role: 'qa', testAccount: 'yes', status: 'active' },
       { id: 'AD-06', name: 'Tariq Saeed', email: 'tariq.old@unieats.qa', role: 'operations', testAccount: 'no', status: 'suspended' }
-    ]
+    ],
+    // Real data only — replaced by loadNameChangeRequests(), never seeded
+    // with demo rows like the arrays above.
+    nameRequests: []
   };
 
   // Mirrors AdminRole.allowedModules in the Flutter rebuild's models/admin_role.dart —
@@ -1811,6 +1815,46 @@
         { id: 'toggle', label: row.status === 'active' ? 'Suspend' : 'Activate', tone: row.status === 'active' ? 'danger' : '', onClick: (r) => confirmAction(`${r.status === 'active' ? 'Suspend' : 'Re-activate'} <strong>${escapeHtml(r.name)}</strong>'s admin access?`, () => { toggleStatus(r, 'active', 'suspended'); showToast(`${r.name} ${r.status === 'suspended' ? 'suspended' : 'activated'}.`); renderResourcePage('roles'); }, { title: 'Update admin access', danger: row.status === 'active' }) }
       ],
       detailFields: [{ name: 'name', label: 'Name' }, { name: 'email', label: 'Email' }, { name: 'role', label: 'Role' }, { name: 'testAccount', label: 'Test Account' }, { name: 'status', label: 'Status' }]
+    },
+
+    // Restaurant name changes — a vendor can no longer write
+    // restaurants/{id}.name directly (see firestore.rules); they submit a
+    // request here instead, and approving it is the only path that
+    // actually updates the live name.
+    nameRequests: {
+      key: 'nameRequests', singular: 'Name Change Request', plural: 'Name Change Requests',
+      idPrefix: 'NR', rows: DB.nameRequests, statusField: 'status', addable: false,
+      columns: [
+        { key: 'restaurant', label: 'Restaurant', render: r => `<div class="cell-main">${escapeHtml(r.currentName)}</div><div class="cell-sub">${escapeHtml(r.restaurantId)}</div>` },
+        { key: 'requestedName', label: 'Requested Name', render: r => `<strong>${escapeHtml(r.requestedName)}</strong>` },
+        { key: 'createdAt', label: 'Submitted', render: r => escapeHtml(r.createdAtLabel) },
+        { key: 'status', label: 'Status', render: r => badgeHtml(r.status) }
+      ],
+      actions: (row) => row.status !== 'pending' ? [] : [
+        { id: 'approve', label: 'Approve', onClick: (r) => {
+          confirmAction(`Rename <strong>${escapeHtml(r.currentName)}</strong> to <strong>${escapeHtml(r.requestedName)}</strong>?`, async () => {
+            await db.collection('restaurants').doc(r.restaurantId).set({ name: r.requestedName }, { merge: true });
+            await db.collection('nameChangeRequests').doc(r.id).set({
+              status: 'approved', reviewedAt: firebase.firestore.FieldValue.serverTimestamp(), reviewedBy: currentAdminEmail,
+            }, { merge: true });
+            r.status = 'approved';
+            r.currentName = r.requestedName;
+            showToast(`Renamed to "${r.requestedName}".`);
+            renderResourcePage('nameRequests');
+          }, { title: 'Approve name change' });
+        } },
+        { id: 'reject', label: 'Reject', tone: 'danger', onClick: (r) => {
+          confirmAction(`Reject the rename request for <strong>${escapeHtml(r.currentName)}</strong>?`, async () => {
+            await db.collection('nameChangeRequests').doc(r.id).set({
+              status: 'rejected', reviewedAt: firebase.firestore.FieldValue.serverTimestamp(), reviewedBy: currentAdminEmail,
+            }, { merge: true });
+            r.status = 'rejected';
+            showToast('Name change request rejected.');
+            renderResourcePage('nameRequests');
+          }, { title: 'Reject name change', danger: true });
+        } },
+      ],
+      detailFields: [{ name: 'currentName', label: 'Current Name' }, { name: 'requestedName', label: 'Requested Name' }, { name: 'restaurantId', label: 'Restaurant ID' }, { name: 'status', label: 'Status' }]
     }
   };
 
@@ -2275,6 +2319,29 @@
     replaceAll(DB.admins, admins);
   }
 
+  async function loadNameChangeRequests() {
+    const [requestsSnap, restaurantsSnap] = await Promise.all([
+      db.collection('nameChangeRequests').get(),
+      db.collection('restaurants').get(),
+    ]);
+    const restaurantNames = {};
+    restaurantsSnap.docs.forEach((d) => { restaurantNames[d.id] = d.data().name || d.id; });
+
+    const requests = requestsSnap.docs.map((d) => {
+      const r = d.data();
+      return {
+        id: d.id,
+        restaurantId: r.restaurantId || '—',
+        currentName: restaurantNames[r.restaurantId] || r.restaurantId || '—',
+        requestedName: r.requestedName || '—',
+        status: r.status || 'pending',
+        createdAtLabel: r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().toLocaleString() : '—',
+        createdAtMs: r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().getTime() : 0,
+      };
+    }).sort((a, b) => b.createdAtMs - a.createdAtMs);
+    replaceAll(DB.nameRequests, requests);
+  }
+
   // ---- Real-only resource pages: drop Add/Edit, keep View + the
   // block/suspend toggle which now also writes Firestore. ----
   function wireRealActions() {
@@ -2383,7 +2450,7 @@
 
     wireRealActions();
     try {
-      await Promise.all([loadRealData(), loadAdmins()]);
+      await Promise.all([loadRealData(), loadAdmins(), loadNameChangeRequests()]);
     } catch (e) {
       console.error('[Admin] data load failed', e);
       showToast('Some live data failed to load — check console.');
