@@ -101,8 +101,13 @@ service cloud.firestore {
 
       allow update: if isAdmin() ||
         (isSignedIn() && request.auth.uid == driverId &&
-          // driver cannot lift their own suspension
-          request.resource.data.isSuspended == resource.data.isSuspended);
+          // driver cannot lift their own suspension. Null-safe default: docs
+          // bootstrapped via Google/Apple sign-in lack an isSuspended field,
+          // and a bare `.isSuspended` lookup on a missing key errors out and
+          // denies EVERY driver self-update (photo, name, documents, online
+          // toggle). Defaulting both sides to false keeps the guard intact
+          // while letting legitimate edits through.
+          request.resource.data.get('isSuspended', false) == resource.data.get('isSuspended', false));
 
       allow delete: if isAdmin();
 
