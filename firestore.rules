@@ -129,7 +129,32 @@ service cloud.firestore {
         (isSignedIn() &&
           (resource.data.userId == request.auth.uid ||
            resource.data.driverId == request.auth.uid ||
-           isVendorOf(resource.data.vendorId)));
+           isVendorOf(resource.data.vendorId) ||
+           // Any signed-in driver must be able to read the AVAILABLE-ORDERS
+           // POOL: unclaimed delivery orders waiting for someone to accept.
+           // streamAvailableOrders() queries exactly
+           //   (status == 'awaitingDriver' && orderType == 'delivery')
+           // and Firestore evaluates THIS read rule against every document
+           // the query returns. If even one returned doc is denied, the
+           // ENTIRE listener fails with PERMISSION_DENIED — that is the
+           // "Reconnecting to available orders…" loop in the driver app.
+           //
+           // Without this clause a driver is none of customer / assigned-
+           // driver / vendor for an unclaimed order, so every available
+           // order was denied and the stream never started. It was masked
+           // on devices with a warm Firestore offline cache and only
+           // surfaced on cold-cache devices (e.g. a fresh install). 'ready'
+           // is included because acceptOrder() and watchOrderUnavailable()
+           // also treat an unclaimed 'ready' delivery order as claimable.
+           //
+           // Deliberately NOT gated on driverId: this rule is evaluated
+           // against every doc the query returns, and that query only
+           // guarantees (status, orderType) — a stale failed-accept can
+           // leave driverId == '' on an awaitingDriver order. Any extra
+           // field condition the query doesn't guarantee can make a returned
+           // doc fail this rule and kill the ENTIRE listener.
+           (resource.data.orderType == 'delivery' &&
+            resource.data.status in ['awaitingDriver', 'ready'])));
 
       // Customer creates an order for themselves only.
       //
@@ -214,10 +239,16 @@ service cloud.firestore {
         // Driver already assigned to this order advances its own delivery.
         (isSignedIn() && resource.data.driverId == request.auth.uid &&
           request.resource.data.driverId == resource.data.driverId &&
+          // 'arrivedAtCustomer' added to target list (pickedUp → arrivedAtCustomer)
+          // and source list (arrivedAtCustomer → delivered). 'ready' added to
+          // the source list to cover Path A: driver claims before kitchen done
+          // (awaitingDriver → preparing), vendor marks ready (preparing → ready),
+          // driver picks up (ready → pickedUp) — 'ready' was missing, silently
+          // blocking every pickup in this common flow when the driver accepts first.
           request.resource.data.status in
-            ['pickedUp', 'enRoute', 'delivered'] &&
+            ['pickedUp', 'enRoute', 'arrivedAtCustomer', 'delivered'] &&
           resource.data.status in
-            ['assigned', 'pickedUp', 'enRoute']) ||
+            ['assigned', 'ready', 'pickedUp', 'enRoute', 'arrivedAtCustomer']) ||
 
         // Driver already assigned marks arrival at the restaurant —
         // driverAtRestaurant only, status untouched (see ORDER_LIFECYCLE.md:
