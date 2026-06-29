@@ -176,7 +176,7 @@ service cloud.firestore {
         (!('driverId' in request.resource.data) || request.resource.data.driverId == null) &&
         request.resource.data.subtotal is number &&
         request.resource.data.subtotal > 0 &&
-        request.resource.data.deliveryFee in [0, 5] &&
+        (request.resource.data.deliveryFee == 0 || request.resource.data.deliveryFee == 5) &&
         // No voucherCode -> discount must be exactly zero (closes the
         // "free-form discount, no voucher required" gap). With a
         // voucherCode, the discount must match what that real voucher doc
