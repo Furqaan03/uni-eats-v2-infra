@@ -119,6 +119,15 @@ service cloud.firestore {
       match /private/bankDetails {
         allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == driverId);
       }
+
+      // drivers/{uid}/abandonedTrips/{orderId}
+      // Orders the driver gave up before pickup, logged here because
+      // abandonDelivery() clears driverId on the order (returning it to the
+      // pool), which removes it from the driver's read scope. Each driver can
+      // only read/write their own abandon log.
+      match /abandonedTrips/{tripId} {
+        allow read, write: if isSignedIn() && request.auth.uid == driverId;
+      }
     }
 
     // ---------------------------------------------------------------------
