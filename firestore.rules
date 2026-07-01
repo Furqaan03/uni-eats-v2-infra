@@ -234,6 +234,15 @@ service cloud.firestore {
           request.resource.data.status == 'cancelled' &&
           resource.data.status in ['placed', 'preparing', 'awaitingDriver']) ||
 
+        // Customer refreshes the push tokens on their OWN order — e.g. they
+        // signed in on a new device after placing it, so that device needs to
+        // be added to customerFcmTokens to receive this order's updates
+        // (the vendor/driver read customer tokens off the order, since
+        // users/{uid} isn't cross-account readable). Scoped to that one field
+        // via hasOnly, so it can't touch status / pricing / driver.
+        (isSignedIn() && resource.data.userId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['customerFcmTokens'])) ||
+
         // Driver claims an unassigned 'ready' delivery order — must set
         // driverId to themselves, cannot reassign someone else's order.
         (isSignedIn() && resource.data.status == 'ready' &&
