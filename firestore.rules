@@ -81,8 +81,13 @@ service cloud.firestore {
 
       allow update: if isAdmin() ||
         (isSignedIn() && request.auth.uid == userId &&
-          // owner cannot flip their own isBlocked flag
-          request.resource.data.isBlocked == resource.data.isBlocked);
+          // owner cannot flip their own isBlocked flag. Null-safe default:
+          // user docs created without an isBlocked field make a bare
+          // `.isBlocked` lookup error out, which denies EVERY owner update
+          // (including the fcmToken merge-write that powers push). Defaulting
+          // both sides to false keeps the guard intact while letting
+          // legitimate self-edits through — same fix as drivers' isSuspended.
+          request.resource.data.get('isBlocked', false) == resource.data.get('isBlocked', false));
 
       allow delete: if isAdmin();
     }
