@@ -2135,8 +2135,8 @@
   // actually happening across the whole system live, not a stale snapshot
   // from whenever they last logged in or manually refreshed.
   let _liveUnsubs = [];
-  let _liveDocs = { users: [], orders: [], restaurants: [], vendorAccounts: [], drivers: [] };
-  let _liveLoaded = { users: false, orders: false, restaurants: false, vendorAccounts: false, drivers: false };
+  let _liveDocs = { users: [], orders: [], restaurants: [], vendorAccounts: [], vendors: [], drivers: [] };
+  let _liveLoaded = { users: false, orders: false, restaurants: false, vendorAccounts: false, vendors: false, drivers: false };
 
   function teardownLiveListeners() {
     _liveUnsubs.forEach((fn) => fn());
@@ -2162,6 +2162,10 @@
       _liveUnsubs.push(db.collection(envCol('orders')).onSnapshot(onUpdate('orders'), onErr('orders')));
       _liveUnsubs.push(db.collection(envCol('restaurants')).onSnapshot(onUpdate('restaurants'), onErr('restaurants')));
       _liveUnsubs.push(db.collection(envCol('vendorAccounts')).onSnapshot(onUpdate('vendorAccounts'), onErr('vendorAccounts')));
+      // The vendor app writes its profile to `vendors/{uid}` (restaurantId,
+      // email, name), NOT `vendorAccounts` — surface it so real vendor sign-ups
+      // link to their restaurant (owner email) in the dashboard.
+      _liveUnsubs.push(db.collection(envCol('vendors')).onSnapshot(onUpdate('vendors'), onErr('vendors')));
       _liveUnsubs.push(db.collection(envCol('drivers')).onSnapshot(onUpdate('drivers'), onErr('drivers')));
     });
   }
@@ -2233,11 +2237,17 @@
       };
     });
 
-    // ---- Restaurants (cross-ref vendorAccounts for owner email) ----
+    // ---- Restaurants (cross-ref vendor accounts for owner email) ----
+    // Merge both sources: legacy `vendorAccounts` (email-keyed) and the real
+    // `vendors/{uid}` docs the vendor app actually writes on sign-in.
     const ownerByRestaurantId = {};
     vendorAccountsSnap.docs.forEach((d) => {
       const v = d.data();
       if (v.restaurantId) ownerByRestaurantId[v.restaurantId] = v.email || d.id;
+    });
+    (_liveDocs.vendors || []).forEach((d) => {
+      const v = d.data();
+      if (v.restaurantId) ownerByRestaurantId[v.restaurantId] = v.email || ownerByRestaurantId[v.restaurantId] || d.id;
     });
     const restaurants = restaurantsSnap.docs.map((d) => {
       const r = d.data();
