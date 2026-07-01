@@ -146,7 +146,7 @@ infra updated. All current data is TEST; no real live data yet.
 - Docs/infra updated, analyzers clean, no secrets, committed — 1.5
 
 ## Status
-- [ ] Dashboard real env switch
-- [ ] App env-awareness (customer/vendor/driver)
-- [ ] Rules + indexes for live_ namespace, deployed
-- [ ] Verify, score, commit/push
+- [x] Dashboard real env switch (envCol + re-subscribe); deployed to Hosting
+- [x] App env-awareness (customer/vendor/driver) — AppEnv.col(), default test
+- [x] Rules + indexes for live_ namespace, compiled + deployed
+- [x] Verify (analyzers clean, rules compiled, braces balanced), commit/push

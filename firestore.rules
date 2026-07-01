@@ -66,6 +66,25 @@ service cloud.firestore {
         discount >= expected - 0.01 && discount <= expected + 0.01;
     }
 
+    // ---- LIVE-environment helper variants (read the live_ collections) ----
+    function vendorRestaurantIdLive() {
+      return isSignedIn() && exists(/databases/$(database)/documents/live_vendors/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/live_vendors/$(request.auth.uid)).data.restaurantId
+        : null;
+    }
+    function isVendorOfLive(restaurantId) {
+      return isSignedIn() && vendorRestaurantIdLive() == restaurantId;
+    }
+    function isValidVoucherDiscountLive(voucherCode, subtotal, discount, vendorId) {
+      let voucher = get(/databases/$(database)/documents/live_vouchers/$(voucherCode)).data;
+      let raw = voucher.type == 'percent' ? (subtotal * voucher.value / 100) : voucher.value;
+      let expected = raw > subtotal ? subtotal : raw;
+      return voucher.active == true &&
+        voucher.restaurantId == vendorId &&
+        subtotal >= voucher.min &&
+        discount >= expected - 0.01 && discount <= expected + 0.01;
+    }
+
     // ---------------------------------------------------------------------
     // users/{uid}
     // Customer profile. Doc ID == Firebase Auth uid.
@@ -666,5 +685,450 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if false;
     }
+
+    // =====================================================================
+    // LIVE ENVIRONMENT — mirrors of the env-scoped collections above,
+    // under the `live_` namespace. Same security posture as TEST;
+    // generated from the unprefixed blocks. `admins` is shared (not here).
+    // =====================================================================
+    match /live_users/{userId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+
+      // Owner can create/update their own doc, but cannot self-unblock.
+      allow create: if isSignedIn() && request.auth.uid == userId &&
+        (!('isBlocked' in request.resource.data) || request.resource.data.isBlocked == false);
+
+      allow update: if isAdmin() ||
+        (isSignedIn() && request.auth.uid == userId &&
+          // owner cannot flip their own isBlocked flag. Null-safe default:
+          // user docs created without an isBlocked field make a bare
+          // `.isBlocked` lookup error out, which denies EVERY owner update
+          // (including the fcmToken merge-write that powers push). Defaulting
+          // both sides to false keeps the guard intact while letting
+          // legitimate self-edits through — same fix as drivers' isSuspended.
+          request.resource.data.get('isBlocked', false) == resource.data.get('isBlocked', false));
+
+      allow delete: if isAdmin();
+    }
+    match /live_drivers/{driverId} {
+      // Customers/vendors need to see online drivers; keep read open to any
+      // signed-in user, full scan for admin.
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() && request.auth.uid == driverId;
+
+      allow update: if isAdmin() ||
+        (isSignedIn() && request.auth.uid == driverId &&
+          // driver cannot lift their own suspension. Null-safe default: docs
+          // bootstrapped via Google/Apple sign-in lack an isSuspended field,
+          // and a bare `.isSuspended` lookup on a missing key errors out and
+          // denies EVERY driver self-update (photo, name, documents, online
+          // toggle). Defaulting both sides to false keeps the guard intact
+          // while letting legitimate edits through.
+          request.resource.data.get('isSuspended', false) == resource.data.get('isSuspended', false));
+
+      allow delete: if isAdmin();
+
+      // drivers/{uid}/private/bankDetails
+      // Payout bank info (card name, IBAN, mobile) — deliberately NOT on the
+      // parent doc above, since that doc is readable by any signed-in user
+      // (customers/vendors need online-status visibility). Financial
+      // details get their own locked-down subdocument instead.
+      match /private/bankDetails {
+        allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == driverId);
+      }
+
+      // drivers/{uid}/abandonedTrips/{orderId}
+      // Orders the driver gave up before pickup, logged here because
+      // abandonDelivery() clears driverId on the order (returning it to the
+      // pool), which removes it from the driver's read scope. Each driver can
+      // only read/write their own abandon log.
+      match /abandonedTrips/{tripId} {
+        allow read, write: if isSignedIn() && request.auth.uid == driverId;
+      }
+    }
+    match /live_orders/{orderId} {
+      allow read: if isAdmin() ||
+        (isSignedIn() &&
+          (resource.data.userId == request.auth.uid ||
+           resource.data.driverId == request.auth.uid ||
+           isVendorOfLive(resource.data.vendorId) ||
+           // Any signed-in driver must be able to read the AVAILABLE-ORDERS
+           // POOL: unclaimed delivery orders waiting for someone to accept.
+           // streamAvailableOrders() queries exactly
+           //   (status == 'awaitingDriver' && orderType == 'delivery')
+           // and Firestore evaluates THIS read rule against every document
+           // the query returns. If even one returned doc is denied, the
+           // ENTIRE listener fails with PERMISSION_DENIED — that is the
+           // "Reconnecting to available orders…" loop in the driver app.
+           //
+           // Without this clause a driver is none of customer / assigned-
+           // driver / vendor for an unclaimed order, so every available
+           // order was denied and the stream never started. It was masked
+           // on devices with a warm Firestore offline cache and only
+           // surfaced on cold-cache devices (e.g. a fresh install). 'ready'
+           // is included because acceptOrder() and watchOrderUnavailable()
+           // also treat an unclaimed 'ready' delivery order as claimable.
+           //
+           // Deliberately NOT gated on driverId: this rule is evaluated
+           // against every doc the query returns, and that query only
+           // guarantees (status, orderType) — a stale failed-accept can
+           // leave driverId == '' on an awaitingDriver order. Any extra
+           // field condition the query doesn't guarantee can make a returned
+           // doc fail this rule and kill the ENTIRE listener.
+           (resource.data.orderType == 'delivery' &&
+            resource.data.status in ['awaitingDriver', 'ready'])));
+
+      // Customer creates an order for themselves only.
+      //
+      // Pricing fields (subtotal/deliveryFee/discount/total) previously had
+      // no validation at all beyond existing as numbers — a client could
+      // place a real order with items worth QAR 100 but total: 0.01, and
+      // since the wallet's hold/capture amount is read straight off the
+      // order's `total` field, that's a direct pay-nothing exploit, not
+      // just a display glitch. This can't fully verify subtotal against the
+      // real menu (rules can't iterate the items array against menus/{id}
+      // without per-item get() calls this app's items list doesn't bound),
+      // but it does close the specific "total doesn't match the order's own
+      // declared subtotal/fee/discount" gap, and pins deliveryFee to the
+      // only two legitimate values (0 for pickup, the flat kDeliveryFee for
+      // delivery — see checkout_screen.dart).
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'placed' &&
+        (!('driverId' in request.resource.data) || request.resource.data.driverId == null) &&
+        request.resource.data.subtotal is number &&
+        request.resource.data.subtotal > 0 &&
+        (request.resource.data.deliveryFee == 0 || request.resource.data.deliveryFee == 5) &&
+        // No voucherCode -> discount must be exactly zero (closes the
+        // "free-form discount, no voucher required" gap). With a
+        // voucherCode, the discount must match what that real voucher doc
+        // actually earns against this order's own subtotal.
+        (
+          (!('voucherCode' in request.resource.data) &&
+            (!('discount' in request.resource.data) || request.resource.data.discount == 0)) ||
+          ('voucherCode' in request.resource.data &&
+            request.resource.data.discount is number &&
+            isValidVoucherDiscountLive(
+              request.resource.data.voucherCode,
+              request.resource.data.subtotal,
+              request.resource.data.discount,
+              request.resource.data.vendorId))
+        ) &&
+        request.resource.data.total is number &&
+        request.resource.data.total >= (request.resource.data.subtotal +
+          request.resource.data.deliveryFee -
+          (('discount' in request.resource.data) ? request.resource.data.discount : 0)) - 0.01 &&
+        request.resource.data.total <= (request.resource.data.subtotal +
+          request.resource.data.deliveryFee -
+          (('discount' in request.resource.data) ? request.resource.data.discount : 0)) + 0.01;
+
+      // Updates: scoped by role + restricted to legitimate status transitions.
+      allow update: if isAdmin() ||
+        // Customer may only cancel their own pending order. 'awaitingDriver'
+        // was missing here — the customer-facing "no drivers available"
+        // banner's Cancel button writes status:'cancelled' while the order
+        // is still 'awaitingDriver', and without this the write was
+        // PERMISSION_DENIED'd silently: the customer app showed "cancelled"
+        // from its own optimistic local update, but Firestore never
+        // actually changed, so the order kept sitting live in the vendor
+        // app's "Awaiting Driver" list forever.
+        (isSignedIn() && resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.status == 'cancelled' &&
+          resource.data.status in ['placed', 'preparing', 'awaitingDriver']) ||
+
+        // Customer refreshes the push tokens on their OWN order — e.g. they
+        // signed in on a new device after placing it, so that device needs to
+        // be added to customerFcmTokens to receive this order's updates
+        // (the vendor/driver read customer tokens off the order, since
+        // users/{uid} isn't cross-account readable). Scoped to that one field
+        // via hasOnly, so it can't touch status / pricing / driver.
+        (isSignedIn() && resource.data.userId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['customerFcmTokens'])) ||
+
+        // Driver claims an unassigned 'ready' delivery order — must set
+        // driverId to themselves, cannot reassign someone else's order.
+        (isSignedIn() && resource.data.status == 'ready' &&
+          resource.data.orderType == 'delivery' &&
+          resource.data.driverId == null &&
+          request.resource.data.driverId == request.auth.uid &&
+          request.resource.data.status == 'assigned') ||
+
+        // Driver claims an unassigned 'awaitingDriver' order — this is the
+        // common claim path (acceptOrder() in the driver app's
+        // firestore_order_service.dart writes exactly this transition) and
+        // is what actually starts the kitchen. THIS BRANCH WAS MISSING
+        // ENTIRELY — every claim of a freshly-accepted order (i.e. almost
+        // every delivery order, since 'ready' orders with no driver are the
+        // rare defensive-fallback case) was silently PERMISSION_DENIED'd.
+        (isSignedIn() && resource.data.status == 'awaitingDriver' &&
+          resource.data.orderType == 'delivery' &&
+          resource.data.driverId == null &&
+          request.resource.data.driverId == request.auth.uid &&
+          request.resource.data.status == 'preparing') ||
+
+        // Driver already assigned to this order advances its own delivery.
+        (isSignedIn() && resource.data.driverId == request.auth.uid &&
+          request.resource.data.driverId == resource.data.driverId &&
+          // 'arrivedAtCustomer' added to target list (pickedUp → arrivedAtCustomer)
+          // and source list (arrivedAtCustomer → delivered). 'ready' added to
+          // the source list to cover Path A: driver claims before kitchen done
+          // (awaitingDriver → preparing), vendor marks ready (preparing → ready),
+          // driver picks up (ready → pickedUp) — 'ready' was missing, silently
+          // blocking every pickup in this common flow when the driver accepts first.
+          request.resource.data.status in
+            ['pickedUp', 'enRoute', 'arrivedAtCustomer', 'delivered'] &&
+          resource.data.status in
+            ['assigned', 'ready', 'pickedUp', 'enRoute', 'arrivedAtCustomer']) ||
+
+        // Driver already assigned marks arrival at the restaurant —
+        // driverAtRestaurant only, status untouched (see ORDER_LIFECYCLE.md:
+        // arrival is deliberately not folded into `status`, since the driver
+        // can get there before the kitchen finishes). THIS BRANCH WAS ALSO
+        // MISSING — markArrivedAtRestaurant's status-unchanged write matched
+        // no existing branch, since the "advances its own delivery" branch
+        // above requires status to move forward.
+        (isSignedIn() && resource.data.driverId == request.auth.uid &&
+          request.resource.data.status == resource.data.status &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['driverAtRestaurant'])) ||
+
+        // Driver already assigned abandons the delivery before pickup — puts
+        // it back in the available-orders pool for another driver to claim.
+        // Scoped to before 'pickedUp': once the driver physically has the
+        // food, abandoning needs a real return-to-restaurant flow, not just
+        // a status rollback, so it's deliberately not allowed past this
+        // point.
+        (isSignedIn() && resource.data.driverId == request.auth.uid &&
+          resource.data.status in ['preparing', 'ready', 'assigned'] &&
+          request.resource.data.status == 'awaitingDriver' &&
+          request.resource.data.driverId == null &&
+          request.resource.data.driverName == null &&
+          request.resource.data.driverAtRestaurant == false) ||
+
+        // Vendor owning this order progresses it through accept/prep/ready/
+        // delivered/pickedUp, or rejects it (cancelled) — but may not touch
+        // userId/items/totals/driverId. Must include every status the
+        // vendor app's advanceOrder/cancelOrder actually write (see
+        // vendor_provider.dart _toFirestoreStatus): 'awaitingDriver' for a
+        // freshly-accepted delivery order and 'cancelled' for a rejection
+        // were missing here, which silently PERMISSION_DENIED'd every
+        // Accept/Reject tap in the vendor app.
+        //
+        // The vendor app's own UI (order_detail_screen.dart's `canCancel`)
+        // also allows rejecting an order while it's already 'awaitingDriver'
+        // (still waiting on a driver to pick it up, including the
+        // no-drivers-available case) — that source status was missing from
+        // this list, so the cancel button silently failed with
+        // PERMISSION_DENIED at exactly the moment vendors most needed it.
+        (isVendorOfLive(resource.data.vendorId) &&
+          request.resource.data.vendorId == resource.data.vendorId &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.items == resource.data.items &&
+          request.resource.data.total == resource.data.total &&
+          request.resource.data.driverId == resource.data.driverId &&
+          request.resource.data.status in
+            ['awaitingDriver', 'preparing', 'ready', 'delivered', 'pickedUp', 'cancelled'] &&
+          resource.data.status in ['placed', 'preparing', 'ready', 'awaitingDriver']) ||
+
+        // Any signed-in driver may record that they declined an unassigned
+        // delivery order, and (once every online driver has done the same)
+        // flag it as having no available drivers — declining doesn't
+        // require being the order's assigned driver, since there isn't one
+        // yet. Scoped to exactly the fields
+        // recordDeclineAndCheckAvailability writes so a driver can't use
+        // this branch to touch anything else.
+        (isSignedIn() &&
+          resource.data.orderType == 'delivery' &&
+          resource.data.driverId == null &&
+          resource.data.status in ['awaitingDriver', 'ready'] &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['declinedDriverIds', 'noDriversAvailable', 'noDriversAvailableAt'])) ||
+
+        // Customer switches their own stuck "no drivers available" delivery
+        // order to pickup (uni-eats-v2-main's switchOrderToPickup) — only
+        // when the order already carries that flag, and only to flip
+        // orderType/deliveryFee/total and clear the flag. Status, items,
+        // driverId, userId untouched.
+        (isSignedIn() && resource.data.userId == request.auth.uid &&
+          resource.data.noDriversAvailable == true &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.status == resource.data.status &&
+          request.resource.data.orderType == 'pickup' &&
+          request.resource.data.noDriversAvailable == false &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['orderType', 'deliveryFee', 'total', 'noDriversAvailable'])) ||
+
+        // Customer resolves their own order's wallet escrow hold — captures
+        // it once the order has actually been accepted (held -> captured,
+        // written atomically with the wallet debit by
+        // captureOrderPayment/wallet_provider.dart), or releases it if the
+        // order was cancelled before acceptance (held -> released). Scoped
+        // to paymentStatus only — nothing else about the order can move.
+        //
+        // THIS BRANCH WAS MISSING ENTIRELY: every customer-side capture
+        // write was silently PERMISSION_DENIED'd, so paymentStatus stayed
+        // 'held' forever no matter how many times the order advanced. Every
+        // fresh app launch re-ran escrow resolution, saw 'held' again, and
+        // re-deducted the wallet for the same order all over again —
+        // driving the balance further negative on every single relaunch.
+        (isSignedIn() && resource.data.userId == request.auth.uid &&
+          resource.data.paymentStatus == 'held' &&
+          request.resource.data.paymentStatus in ['captured', 'released'] &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus']));
+
+      allow delete: if isAdmin();
+    }
+    match /live_restaurants/{restaurantId} {
+      allow read: if true; // customer app browses restaurants unauthenticated/authenticated
+
+      // Normal vendor edits to their own restaurant (existing path) — but
+      // `name` is carved out: a vendor can change location/hours/category/
+      // etc. freely, but not the restaurant's displayed name. That now
+      // requires a nameChangeRequests/{id} doc an admin approves (see below)
+      // — name only ever moves via isAdmin() or that approval flow writing
+      // it directly, never from this branch.
+      allow write: if isAdmin() || (isVendorOfLive(restaurantId) &&
+        (resource == null || !('name' in request.resource.data) ||
+          request.resource.data.name == resource.data.name)) ||
+        (isSignedIn() &&
+          (resource == null || !('ownerUid' in resource.data) || resource.data.ownerUid == null) &&
+          request.resource.data.ownerUid == request.auth.uid &&
+          (resource == null
+            ? request.resource.data.keys().hasOnly(['ownerUid'])
+            : request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid'])));
+    }
+    match /live_nameChangeRequests/{requestId} {
+      allow read: if isAdmin() || (isSignedIn() && isVendorOfLive(resource.data.restaurantId));
+
+      allow create: if isSignedIn() &&
+        isVendorOfLive(request.resource.data.restaurantId) &&
+        request.resource.data.requestedBy == request.auth.uid &&
+        request.resource.data.status == 'pending';
+
+      allow update, delete: if isAdmin();
+    }
+    match /live_menuAvailability/{restaurantId} {
+      allow read: if true;
+      allow write: if isAdmin() || isVendorOfLive(restaurantId);
+    }
+    match /live_menus/{restaurantId}/items/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin() || isVendorOfLive(restaurantId);
+    }
+    match /live_vendors/{vendorUid} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == vendorUid);
+
+      // Vendor creates only their own profile. Also requires the
+      // restaurants/{restaurantId} ownership claim (above) to already be
+      // theirs — previously this only checked request.auth.uid == vendorUid,
+      // so ANY signed-in user could create a vendors/{their_uid} doc
+      // pointing restaurantId at a restaurant someone else already runs,
+      // and isVendorOfLive() would then trust them too: full read of that
+      // restaurant's orders (customer PII, totals) plus write access to its
+      // menu/availability. The signup flow (auth_provider.dart) now claims
+      // the restaurant doc first, in a separate write, before this one.
+      allow create: if isSignedIn() && request.auth.uid == vendorUid &&
+        get(/databases/$(database)/documents/restaurants/$(request.resource.data.restaurantId))
+          .data.ownerUid == request.auth.uid;
+
+      // restaurantId is immutable after creation — prevents a vendor from
+      // reassigning themselves to a different restaurant's data.
+      allow update: if isAdmin() ||
+        (isSignedIn() && request.auth.uid == vendorUid &&
+          request.resource.data.restaurantId == resource.data.restaurantId);
+
+      allow delete: if isAdmin();
+    }
+    match /live_wallets/{userId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+
+      match /transactions/{txId} {
+        allow read: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+        // Transactions are an append-only ledger from the owner's perspective.
+        allow create: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+        allow update, delete: if isAdmin();
+      }
+    }
+    match /live_vouchers/{code} {
+      allow read: if isSignedIn();
+
+      allow create: if isAdmin() ||
+        (isSignedIn() && request.resource.data.restaurantId == vendorRestaurantIdLive());
+
+      allow update: if isAdmin() ||
+        (isSignedIn() &&
+          request.resource.data.restaurantId == vendorRestaurantIdLive() &&
+          resource.data.restaurantId == vendorRestaurantIdLive());
+
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.restaurantId == vendorRestaurantIdLive());
+    }
+    match /live_userDirectory/{key} {
+      allow read: if isSignedIn();
+      // Only the uid being pointed at may claim a key, and only for
+      // themselves — prevents squatting another user's email/ID pointer.
+      allow create, update: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+    match /live_walletTransfers/{transferId} {
+      allow read: if isAdmin() ||
+        (isSignedIn() &&
+          (resource.data.fromUserId == request.auth.uid ||
+           resource.data.toUserId == request.auth.uid));
+
+      allow create: if isSignedIn() &&
+        request.resource.data.fromUserId == request.auth.uid &&
+        request.resource.data.toUserId != request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0;
+
+      // Recipient claims their own pending transfer — only status/completedAt
+      // may change, and only from pending -> completed.
+      allow update: if isAdmin() ||
+        (isSignedIn() && resource.data.toUserId == request.auth.uid &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status == 'completed' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt']));
+
+      allow delete: if isAdmin();
+    }
+    match /live_vendorAccounts/{emailKey} {
+      allow read, write: if false;
+    }
+    match /live_orderDeclines/{declineId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && request.resource.data.driverId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+    match /live_ratings/{orderId} {
+      allow read: if isAdmin() ||
+        (isSignedIn() &&
+          (resource.data.userId == request.auth.uid ||
+           resource.data.driverId == request.auth.uid ||
+           isVendorOfLive(resource.data.vendorId)));
+
+      // Only the customer who placed this exact order can rate it, only
+      // once it's actually delivered, and only for the order they claim —
+      // userId/vendorId/driverId on the rating must match the real order
+      // doc, not just whatever the client sends.
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.orderId == orderId &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.status == 'delivered' &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.vendorId == request.resource.data.vendorId &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.driverId == request.resource.data.driverId &&
+        request.resource.data.vendorRating is int &&
+        request.resource.data.vendorRating >= 1 && request.resource.data.vendorRating <= 5;
+
+      // Ratings are immutable from any client once submitted — prevents a
+      // customer from quietly editing a bad rating after the fact, or a
+      // driver/vendor from tampering with one they can read.
+      allow update, delete: if isAdmin();
+    }
+
   }
 }
