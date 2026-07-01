@@ -104,3 +104,49 @@ fcmToken:  string?
 - `lib/main.dart` — Firebase init
 - `lib/services/firestore_order_service.dart` — NEW: stream available + update delivery
 - `lib/core/providers/driver_provider.dart` — Firestore-backed incoming orders
+
+---
+
+# ADDENDUM — Admin Dashboard Integration + Live/Test Environments (2026-07)
+
+Goal: apps + admin dashboard all live on shared Firebase, live-updating; the
+dashboard exposes two truly-separate environments (LIVE = real, TEST = testing);
+infra updated. All current data is TEST; no real live data yet.
+
+## Verified current state
+- Dashboard: static `admin-dashboard/public/index.html`, Firebase Web SDK (compat),
+  project `uni-eats-v2-aabf5`. Already live via 5 `onSnapshot` listeners
+  (users/orders/restaurants/vendorAccounts/drivers) → apps↔dashboard already share Firestore.
+- The Live/Testing switch is **cosmetic** (`index.html` ~L1907 "visual only — UX demo"):
+  flips label + banner but reads the same collections. Core gap to fix.
+
+## Architecture: environment = collection namespace prefix
+- **TEST** → existing UNPREFIXED collections (all current data). Dashboard default.
+- **LIVE** → `live_`-prefixed collections (`live_orders`, ...). Empty until launch.
+- **`admins` is SHARED** (never prefixed): same admin signs into both envs.
+- Chosen over multi-database (needs gcloud DB creation + SDK risk) and over an
+  `env`-field filter (leak-prone, rewrites every query/rule). Prefix namespacing =
+  hard separation, changes localized to each app's Firestore service layer + parallel
+  rule blocks. No migration needed (test = current unprefixed data).
+
+## Workstreams
+1. Dashboard: `dataEnv()` (localStorage, default `test`) + `envCol(name)` (prefix
+   `live_` for live; `admins` always shared). Route all `db.collection(...)` through it
+   except `admins`. Env switch persists + tears down/re-subscribes listeners + re-renders.
+2. Apps: single `AppEnv.envPrefix` (default '' = test), prepended ONLY in each service's
+   collection getters. Zero behavior change now; flip one flag at launch.
+3. Infra: mirror each env-scoped `match /col/{id}` with `match /live_col/{id}` (same
+   rules); `admins` unchanged. Mirror composite indexes for `live_` if needed. Deploy.
+
+## Scoring rubric (target ≥ 9.5 / 10)
+- Dashboard switch really separates data (re-subscribe + correct namespace) — 3
+- All app collections surfaced live — 1.5
+- Apps env-aware, current test behavior unbroken — 2
+- Rules cover both envs, deployed, compile clean — 2
+- Docs/infra updated, analyzers clean, no secrets, committed — 1.5
+
+## Status
+- [ ] Dashboard real env switch
+- [ ] App env-awareness (customer/vendor/driver)
+- [ ] Rules + indexes for live_ namespace, deployed
+- [ ] Verify, score, commit/push
