@@ -50,6 +50,30 @@ service cloud.firestore {
       return isSignedIn() && vendorRestaurantId() == restaurantId;
     }
 
+    // ---- Vendor onboarding custom-claim helpers ----
+    // Claims (vendorStatus, vendorRole, outletId, branchId) are set ONLY by
+    // Cloud Functions via the Admin SDK — never writable from any client. The
+    // client reads them via getIdTokenResult() purely to decide which UI to
+    // show; these helpers let rules make the same distinction server-side.
+    function isApprovedVendor() {
+      return isSignedIn() && request.auth.token.get('vendorStatus', '') == 'approved';
+    }
+    function isPendingVendor() {
+      return isSignedIn() &&
+        request.auth.token.get('vendorStatus', '') in ['pending', 'needs_changes'];
+    }
+
+    // True if the signed-in user owns this registration doc — matched by the
+    // uid stamped on it once they've signed in, or (before that) by the email
+    // the invite was addressed to. Null-safe so a doc missing `uid` doesn't
+    // error the whole rule out.
+    function ownsRegistration(data) {
+      return isSignedIn() && (
+        data.get('uid', '') == request.auth.uid ||
+        data.get('email', '') == request.auth.token.get('email', '')
+      );
+    }
+
     // True if `discount` is exactly what `voucherCode` actually earns against
     // `subtotal`, per the real vouchers/{code} doc — not just any number
     // <= subtotal the client feels like sending. Closes the "discount field
@@ -480,9 +504,14 @@ service cloud.firestore {
       // restaurant's orders (customer PII, totals) plus write access to its
       // menu/availability. The signup flow (auth_provider.dart) now claims
       // the restaurant doc first, in a separate write, before this one.
-      allow create: if isSignedIn() && request.auth.uid == vendorUid &&
-        get(/databases/$(database)/documents/restaurants/$(request.resource.data.restaurantId))
-          .data.ownerUid == request.auth.uid;
+      // No client path creates a vendors/{uid} doc anymore. Under the
+      // onboarding flow the vendor profile is provisioned exclusively by the
+      // approval engine (functions/index.js, Admin SDK, bypasses these rules)
+      // when an admin approves the registration. The old self-serve signup let
+      // any signed-in user claim an unowned restaurant and mint their own
+      // vendors doc — an approval bypass this closes. Admin SDK writes are
+      // unaffected; only the client create path is denied.
+      allow create: if false;
 
       // restaurantId is immutable after creation — prevents a vendor from
       // reassigning themselves to a different restaurant's data.
@@ -678,6 +707,78 @@ service cloud.firestore {
       // Ratings are immutable from any client once submitted — prevents a
       // customer from quietly editing a bad rating after the fact, or a
       // driver/vendor from tampering with one they can read.
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // registrations/{docId}  (+ live_registrations below)
+    // Vendor onboarding application. Doc ID: function-supplied on invite,
+    // or client-supplied uuid on cold self-apply.
+    // fields: type, status, environment, contactName, email, phone, outletId,
+    //         outletName, branchId, location, role, documents[],
+    //         detailsConfirmed, passwordSet, uid, invitedByRepId, adminNote,
+    //         processingLock, notificationSentAt, submittedAt, reviewedAt
+    //
+    // The ACTUAL approval boundary is server-side: `status` only reaches
+    // 'approved'/'rejected', and custom claims only get set, via the Cloud
+    // Functions approval engine (Admin SDK, bypasses these rules). A client
+    // can never self-approve here.
+    // ---------------------------------------------------------------------
+    match /registrations/{docId} {
+      allow read: if isAdmin() || ownsRegistration(resource.data);
+
+      // Cold self-application (unauthenticated or signed-in): status forced to
+      // 'pending', no uid claimed yet, no admin note. The rep resolves outlet
+      // if unlisted. Invite-path docs are created by the function (Admin SDK).
+      allow create: if request.resource.data.type == 'vendor' &&
+        request.resource.data.status == 'pending' &&
+        !('uid' in request.resource.data) &&
+        !('adminNote' in request.resource.data && request.resource.data.adminNote != '') &&
+        !('processingLock' in request.resource.data);
+
+      // Vendor edits ONLY their own doc, ONLY onboarding-relevant fields.
+      // - status: unchanged, or resubmit needs_changes -> pending. Never
+      //   approved/rejected/anything else.
+      // - uid: may be stamped to self once (claim on first sign-in), never
+      //   to another user.
+      // - rep-owned fields (outletId, role, type, email, invitedByRepId) are
+      //   immutable from the client.
+      allow update: if isAdmin() || (
+        ownsRegistration(resource.data) &&
+        request.resource.data.status in ['pending', 'needs_changes'] &&
+        (
+          request.resource.data.status == resource.data.status ||
+          (resource.data.status == 'needs_changes' &&
+           request.resource.data.status == 'pending')
+        ) &&
+        request.resource.data.get('uid', request.auth.uid) == request.auth.uid &&
+        request.resource.data.outletId == resource.data.outletId &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.type == resource.data.type &&
+        request.resource.data.email == resource.data.email &&
+        request.resource.data.get('invitedByRepId', '') ==
+          resource.data.get('invitedByRepId', '') &&
+        // never self-grant claim state / lock fields
+        request.resource.data.get('processingLock', null) ==
+          resource.data.get('processingLock', null)
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // onboarding_events/{autoId}  (+ live_ variant)
+    // Append-only funnel analytics. A signed-in user may log their own events
+    // (uid stamped == theirs); only admins read. No updates/deletes.
+    // ---------------------------------------------------------------------
+    match /onboarding_events/{eventId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+    match /live_onboarding_events/{eventId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
@@ -1029,9 +1130,14 @@ service cloud.firestore {
       // restaurant's orders (customer PII, totals) plus write access to its
       // menu/availability. The signup flow (auth_provider.dart) now claims
       // the restaurant doc first, in a separate write, before this one.
-      allow create: if isSignedIn() && request.auth.uid == vendorUid &&
-        get(/databases/$(database)/documents/restaurants/$(request.resource.data.restaurantId))
-          .data.ownerUid == request.auth.uid;
+      // No client path creates a vendors/{uid} doc anymore. Under the
+      // onboarding flow the vendor profile is provisioned exclusively by the
+      // approval engine (functions/index.js, Admin SDK, bypasses these rules)
+      // when an admin approves the registration. The old self-serve signup let
+      // any signed-in user claim an unowned restaurant and mint their own
+      // vendors doc — an approval bypass this closes. Admin SDK writes are
+      // unaffected; only the client create path is denied.
+      allow create: if false;
 
       // restaurantId is immutable after creation — prevents a vendor from
       // reassigning themselves to a different restaurant's data.
@@ -1128,6 +1234,39 @@ service cloud.firestore {
       // customer from quietly editing a bad rating after the fact, or a
       // driver/vendor from tampering with one they can read.
       allow update, delete: if isAdmin();
+    }
+
+    // live_registrations — identical posture to registrations above (the
+    // onboarding rules don't touch env-specific helpers).
+    match /live_registrations/{docId} {
+      allow read: if isAdmin() || ownsRegistration(resource.data);
+
+      allow create: if request.resource.data.type == 'vendor' &&
+        request.resource.data.status == 'pending' &&
+        !('uid' in request.resource.data) &&
+        !('adminNote' in request.resource.data && request.resource.data.adminNote != '') &&
+        !('processingLock' in request.resource.data);
+
+      allow update: if isAdmin() || (
+        ownsRegistration(resource.data) &&
+        request.resource.data.status in ['pending', 'needs_changes'] &&
+        (
+          request.resource.data.status == resource.data.status ||
+          (resource.data.status == 'needs_changes' &&
+           request.resource.data.status == 'pending')
+        ) &&
+        request.resource.data.get('uid', request.auth.uid) == request.auth.uid &&
+        request.resource.data.outletId == resource.data.outletId &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.type == resource.data.type &&
+        request.resource.data.email == resource.data.email &&
+        request.resource.data.get('invitedByRepId', '') ==
+          resource.data.get('invitedByRepId', '') &&
+        request.resource.data.get('processingLock', null) ==
+          resource.data.get('processingLock', null)
+      );
+
+      allow delete: if isAdmin();
     }
 
   }

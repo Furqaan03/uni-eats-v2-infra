@@ -1,0 +1,19 @@
+{
+  "name": "unieats-functions",
+  "description": "Uni Eats v2 Cloud Functions — vendor onboarding approval engine + email.",
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "scripts": {
+    "lint": "echo \"(no linter configured)\"",
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^5.1.0",
+    "resend": "^4.0.0"
+  },
+  "private": true
+}

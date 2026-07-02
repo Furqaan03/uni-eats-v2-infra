@@ -1,0 +1,45 @@
+rules_version = '2';
+
+// =============================================================================
+// Uni Eats v2 — Cloud Storage Security Rules
+// Project: uni-eats-v2-aabf5
+//
+// Two vendor-onboarding paths live here. Both deny all CLIENT reads — the only
+// reader of onboarding documents and app builds is the Cloud Function service
+// account (which bypasses these rules), surfacing content to admins through a
+// short-lived signed URL. Nothing else in Storage is client-accessible.
+// =============================================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Onboarding documents (trade licence / CR, etc.).
+    // vendor-docs/{uid}/<filename>
+    // - write: only the authenticated owner of that uid path segment.
+    // - type: JPEG / PNG / PDF only.
+    // - size: <= 5 MB.
+    // - read: denied to all clients (admin review reads via signed URL).
+    match /vendor-docs/{uid}/{fileName} {
+      allow read: if false;
+      allow write: if isSignedIn() &&
+        request.auth.uid == uid &&
+        request.resource.size <= 5 * 1024 * 1024 &&
+        request.resource.contentType in ['image/jpeg', 'image/png', 'application/pdf'];
+    }
+
+    // Distributable app builds (APK/IPA). The client never reads the build
+    // path directly — the function mints a signed download URL. Fully locked.
+    match /app-builds/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Deny everything else by default.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
