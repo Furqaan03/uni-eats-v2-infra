@@ -1566,7 +1566,7 @@
     revenue: {
       key: 'revenue', singular: 'Report Row', plural: 'Revenue Reports',
       customRender: () => {
-        const max = Math.max(...DB.revenue.map(r => r.revenue));
+        const max = Math.max(1, ...DB.revenue.map(r => r.revenue));
         const totalRevenue = DB.revenue.reduce((s, r) => s + r.revenue, 0);
         const totalOrders = DB.revenue.reduce((s, r) => s + r.orders, 0);
         const bars = DB.revenue.map(r => `
@@ -1925,8 +1925,8 @@
   // actually happening across the whole system live, not a stale snapshot
   // from whenever they last logged in or manually refreshed.
   let _liveUnsubs = [];
-  let _liveDocs = { users: [], orders: [], restaurants: [], vendors: [], drivers: [] };
-  let _liveLoaded = { users: false, orders: false, restaurants: false, vendors: false, drivers: false };
+  let _liveDocs = { users: [], orders: [], restaurants: [], vendors: [], drivers: [], vouchers: [] };
+  let _liveLoaded = { users: false, orders: false, restaurants: false, vendors: false, drivers: false, vouchers: false };
 
   function teardownLiveListeners() {
     _liveUnsubs.forEach((fn) => fn());
@@ -1976,7 +1976,40 @@
       // (Legacy `vendorAccounts` is dead and locked down in rules, so it's not read.)
       _liveUnsubs.push(db.collection(envCol('vendors')).onSnapshot(onUpdate('vendors'), onErr('vendors')));
       _liveUnsubs.push(db.collection(envCol('drivers')).onSnapshot(onUpdate('drivers'), onErr('drivers')));
+      // vouchers/{code} → surfaced on the Offers page.
+      _liveUnsubs.push(db.collection(envCol('vouchers')).onSnapshot(onUpdate('vouchers'), onErr('vouchers')));
     });
+  }
+
+  // Foods live under menus/{restaurantId}/items (a per-restaurant subcollection),
+  // so they can't come through a single top-level listener like the others.
+  // Fan out one read per restaurant for the current env and flatten into DB.foods.
+  async function loadFoods() {
+    try {
+      const rids = (_liveDocs.restaurants || []).map((d) => d.id);
+      const nameById = {};
+      (_liveDocs.restaurants || []).forEach((d) => { nameById[d.id] = d.data().name || d.id; });
+      const snaps = await Promise.all(
+        rids.map((rid) => db.collection(envCol('menus')).doc(rid).collection('items').get().catch(() => null)),
+      );
+      const foods = [];
+      snaps.forEach((snap, i) => {
+        if (!snap) return;
+        const rid = rids[i];
+        snap.docs.forEach((doc) => {
+          const m = doc.data();
+          foods.push({
+            id: doc.id, name: m.name || '—', restaurant: nameById[rid] || rid,
+            category: m.category || '—', cuisine: '—', price: Number(m.price || 0),
+            status: m.isAvailable === false ? 'inactive' : 'active',
+          });
+        });
+      });
+      replaceAll(DB.foods, foods);
+      if (currentPageKey === 'foods') renderResourcePage('foods');
+    } catch (e) {
+      console.error('[Admin] loadFoods failed', e);
+    }
   }
 
   function _recomputeDashboard() {
@@ -2079,6 +2112,68 @@
     replaceAll(DB.deliveryBoys, deliveryBoys);
     replaceAll(DB.liveOrders, liveOrders);
     replaceAll(DB.orderHistory, orderHistory);
+
+    // ---- Owners: derived from vendors/{uid} (one owner per email; count
+    // distinct restaurants they run). ----
+    const ownersByEmail = {};
+    (_liveDocs.vendors || []).forEach((d) => {
+      const v = d.data();
+      const email = v.email || d.id;
+      if (!ownersByEmail[email]) {
+        ownersByEmail[email] = { id: d.id, name: v.name || email, email, phone: v.phone || '—', _rids: new Set(), status: v.isSuspended ? 'suspended' : 'active' };
+      }
+      if (v.restaurantId) ownersByEmail[email]._rids.add(v.restaurantId);
+    });
+    const owners = Object.values(ownersByEmail).map((o) => ({
+      id: o.id, name: o.name, email: o.email, phone: o.phone, restaurants: o._rids.size, status: o.status,
+    }));
+    replaceAll(DB.owners, owners);
+
+    // ---- Offers: from vouchers/{code}. ----
+    const restNameById = {};
+    restaurants.forEach((r) => { restNameById[r.id] = r.name; });
+    const offers = (_liveDocs.vouchers || []).map((d) => {
+      const v = d.data();
+      const discount = v.type === 'percent' ? `${v.value}% off` : `QAR ${Number(v.value || 0).toFixed(2)} off`;
+      return {
+        id: d.id, title: v.title || d.id, code: d.id, discount,
+        scope: v.restaurantId ? (restNameById[v.restaurantId] || v.restaurantId) : 'All Restaurants',
+        expires: v.expiresAt && v.expiresAt.toDate ? v.expiresAt.toDate().toISOString().slice(0, 10) : '—',
+        status: v.active === false ? 'expired' : 'active',
+      };
+    });
+    replaceAll(DB.offers, offers);
+
+    // ---- Revenue: aggregate real orders by day (last 7 days with activity).
+    // No commission model exists, so commission stays 0. ----
+    const byDate = {};
+    allOrders.forEach((o) => {
+      const dt = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate() : null;
+      if (!dt) return;
+      const key = dt.toISOString().slice(0, 10);
+      const st = o.status || 'placed';
+      const done = st === 'delivered' || (st === 'pickedUp' && o.orderType === 'pickup');
+      byDate[key] = byDate[key] || { date: key, orders: 0, revenue: 0, commission: 0 };
+      byDate[key].orders += 1;
+      if (done) byDate[key].revenue += Number(o.total || 0);
+    });
+    const revenue = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date)).slice(-7);
+    replaceAll(DB.revenue, revenue);
+
+    // ---- Delivery onboarding: drivers with any document still 'pending'. ----
+    const deliveryOnboarding = driversSnap.docs.filter((d) => {
+      const docs = d.data().documents;
+      return docs && Object.values(docs).some((s) => s === 'pending');
+    }).map((d) => {
+      const dr = d.data();
+      const docsMap = dr.documents || {};
+      const pending = Object.keys(docsMap).filter((k) => docsMap[k] === 'pending');
+      return {
+        id: d.id, name: dr.name || '—', phone: dr.phone || '—', vehicle: dr.vehicleType || '—',
+        submitted: '—', docs: pending.length ? `Pending: ${pending.join(', ')}` : 'Pending review', status: 'pending',
+      };
+    });
+    replaceAll(DB.deliveryOnboarding, deliveryOnboarding);
 
     // ---- Dashboard KPIs ----
     const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
@@ -2306,6 +2401,7 @@
     wireRealActions();
     try {
       await Promise.all([loadRealData(), loadAdmins(), loadNameChangeRequests()]);
+      loadFoods(); // depends on restaurants loaded above; fire-and-forget
     } catch (e) {
       console.error('[Admin] data load failed', e);
       showToast('Some live data failed to load — check console.');
@@ -2336,6 +2432,7 @@
   async function reloadAllDataForEnv() {
     try {
       await Promise.all([loadRealData(), loadAdmins(), loadNameChangeRequests()]);
+      loadFoods(); // depends on restaurants loaded above; fire-and-forget
     } catch (e) {
       console.error('[Admin] env reload failed', e);
       showToast('Some data failed to load for this environment — check console.');
