@@ -429,6 +429,18 @@
 
   /* ---------- Data table ---------- */
   .data-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; overflow-x: auto; box-shadow: var(--shadow-xs); }
+  /* Restaurant-grouped Foods page */
+  .rest-group { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); margin-bottom: 12px; overflow: hidden; }
+  .rest-group > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 18px; font-weight: 700; font-size: 14px; user-select: none; }
+  .rest-group > summary::-webkit-details-marker { display: none; }
+  .rest-group > summary::before { content: '▸'; margin-right: 10px; color: var(--text-faint); transition: transform 0.15s; }
+  .rest-group[open] > summary::before { transform: rotate(90deg); }
+  .rest-group > summary:hover { background: var(--surface-2); }
+  .rest-name { flex: 1; }
+  .rest-count { font-size: 12px; font-weight: 600; color: var(--text-faint); background: var(--surface-2); padding: 3px 10px; border-radius: 99px; }
+  .rest-body { border-top: 1px solid var(--border); }
+  .rest-body .data-table { min-width: 0; }
+  .rest-body .data-table-wrap { border: 0; border-radius: 0; box-shadow: none; }
   .data-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 600px; }
   .data-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 800; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2); white-space: nowrap; }
   .data-table td { padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
@@ -1347,6 +1359,39 @@
     foods: {
       key: 'foods', singular: 'Food Item', plural: 'Foods', idPrefix: 'FD', rows: DB.foods,
       statusField: 'status', addable: true,
+      // Grouped view: one collapsible section per restaurant, its menu items
+      // inside. Every restaurant is listed (even those with no items yet).
+      customRender: () => {
+        const cfg = RESOURCE_CONFIG.foods;
+        const byRest = {};
+        DB.foods.forEach((f) => { (byRest[f.restaurant] = byRest[f.restaurant] || []).push(f); });
+        const restNames = [...new Set([...DB.restaurants.map((r) => r.name), ...Object.keys(byRest)])]
+          .sort((a, b) => String(a).localeCompare(String(b)));
+        if (!restNames.length) {
+          return '<div class="data-table-wrap"><div class="empty-state">No restaurants yet.</div></div>';
+        }
+        const sections = restNames.map((name) => {
+          const items = byRest[name] || [];
+          const body = items.length
+            ? `<table class="data-table">
+                <thead><tr><th>Item</th><th>Category</th><th>Price</th><th>Status</th><th></th></tr></thead>
+                <tbody>${items.map((f) => {
+                  const actions = (cfg.actions ? cfg.actions(f) : []).map((a) =>
+                    `<button class="btn btn-sm ${a.tone === 'danger' ? 'btn-danger-outline' : 'btn-outline'}" data-row-action="${a.id}" data-row-id="${f.id}">${a.label}</button>`).join('');
+                  return `<tr><td class="cell-main">${escapeHtml(f.name)}</td><td>${escapeHtml(f.category)}</td><td>${money(f.price)}</td><td>${badgeHtml(f.status)}</td><td><div class="row-actions">${actions}</div></td></tr>`;
+                }).join('')}</tbody>
+              </table>`
+            : '<div class="empty-state" style="padding:18px;">No items yet — this restaurant hasn\'t added a menu.</div>';
+          return `<details class="rest-group">
+              <summary><span class="rest-name">${escapeHtml(name)}</span><span class="rest-count">${items.length} item${items.length === 1 ? '' : 's'}</span></summary>
+              <div class="rest-body">${body}</div>
+            </details>`;
+        }).join('');
+        return `<div class="foods-grouped">
+            <div class="table-foot" style="margin-bottom:12px;"><span>${DB.foods.length} items across ${restNames.length} restaurants</span></div>
+            ${sections}
+          </div>`;
+      },
       fields: [
         { name: 'name', label: 'Item name' },
         { name: 'restaurant', label: 'Restaurant', type: 'select', options: [...new Set(DB.restaurants.map(r => r.name))] },
@@ -1926,6 +1971,10 @@
   // from whenever they last logged in or manually refreshed.
   let _liveUnsubs = [];
   let _liveDocs = { users: [], orders: [], restaurants: [], vendors: [], drivers: [], vouchers: [] };
+  // restaurantId → display name, derived from orders' denormalized
+  // restaurantName (the restaurants doc itself often has no `name` for the
+  // seeded test restaurants — their names live in the app's mock data).
+  let _restNameById = {};
   let _liveLoaded = { users: false, orders: false, restaurants: false, vendors: false, drivers: false, vouchers: false };
 
   function teardownLiveListeners() {
@@ -1988,7 +2037,7 @@
     try {
       const rids = (_liveDocs.restaurants || []).map((d) => d.id);
       const nameById = {};
-      (_liveDocs.restaurants || []).forEach((d) => { nameById[d.id] = d.data().name || d.id; });
+      (_liveDocs.restaurants || []).forEach((d) => { nameById[d.id] = d.data().name || _restNameById[d.id] || d.id; });
       const snaps = await Promise.all(
         rids.map((rid) => db.collection(envCol('menus')).doc(rid).collection('items').get().catch(() => null)),
       );
@@ -2020,6 +2069,9 @@
 
     // ---- Orders: split into live vs history, and tally per-customer spend ----
     const allOrders = ordersSnap.docs.map((d) => ({ docId: d.id, ...d.data() }));
+    // Build restaurantId → name from order data (vendorId is the restaurant id).
+    _restNameById = {};
+    allOrders.forEach((o) => { if (o.vendorId && o.restaurantName) _restNameById[o.vendorId] = o.restaurantName; });
     const spendByUser = {};
     const ordersByUser = {};
     let totalRevenue = 0;
@@ -2090,7 +2142,7 @@
       const r = d.data();
       const ordersForThis = allOrders.filter((o) => o.vendorId === d.id).length;
       return {
-        id: d.id, name: r.name || d.id,
+        id: d.id, name: r.name || _restNameById[d.id] || d.id,
         owner: ownerByRestaurantId[d.id] || TEST_VENDOR_OWNERS[d.id] || '—',
         cuisine: '—', orders: ordersForThis, rating: 0,
         status: r.adminSuspended ? 'suspended' : 'active',
