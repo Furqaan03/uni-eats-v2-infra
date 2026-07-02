@@ -616,7 +616,7 @@
     <div class="nav-group" data-group="partners">
       <button class="nav-group-header" data-toggle-group="partners">
         <span class="nav-icon">⌘</span><span class="nav-label">Partners</span>
-        <span class="nav-badge demo" id="badge-onboarding" style="display:none;" title="Onboarding approvals aren't tracked in Firestore yet">0</span><span class="nav-chevron">▸</span>
+        <span class="nav-badge" id="badge-onboarding" style="display:none;" title="Vendor applications pending review">0</span><span class="nav-chevron">▸</span>
       </button>
       <div class="nav-sub-list"><div class="nav-sub-list-inner">
         <button class="nav-sub-item" data-page="restaurants" data-title="Restaurants" data-sub="All onboarded restaurants">Restaurants</button>
@@ -1112,7 +1112,7 @@
     const filterEl = document.getElementById('tb-filter');
     if (filterEl) filterEl.addEventListener('change', (e) => { state.filter = e.target.value; renderResourcePage(key); });
     const addBtn = document.getElementById('tb-add');
-    if (addBtn) addBtn.addEventListener('click', () => openFormModal(cfg));
+    if (addBtn) addBtn.addEventListener('click', () => cfg.onAdd ? cfg.onAdd() : openFormModal(cfg));
 
     wireRowActions(cfg);
 
@@ -1885,6 +1885,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-functions-compat.js"></script>
 <script>
 (function () {
   // The Firebase Web "config" object is not a secret — it's meant to ship
@@ -1901,6 +1902,22 @@
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
   const db = firebase.firestore();
+  const fns = firebase.functions();
+
+  // Call a Cloud Function callable, surfacing failures as a toast. All vendor
+  // onboarding actions go through callables — the browser NEVER writes claims
+  // or status: approved directly (the Admin SDK functions are the only writer).
+  async function callFn(name, data) {
+    try {
+      const res = await fns.httpsCallable(name)(data);
+      return res.data;
+    } catch (e) {
+      console.error(`[Admin] ${name} failed`, e);
+      const msg = (e && e.message) || 'Request failed.';
+      showToast(`${name}: ${msg}`);
+      throw e;
+    }
+  }
 
   // ---------- Environment (LIVE vs TEST) data separation ----------
   // Two environments share one Firebase project via a collection-name prefix:
@@ -1970,12 +1987,12 @@
   // actually happening across the whole system live, not a stale snapshot
   // from whenever they last logged in or manually refreshed.
   let _liveUnsubs = [];
-  let _liveDocs = { users: [], orders: [], restaurants: [], vendors: [], drivers: [], vouchers: [] };
+  let _liveDocs = { users: [], orders: [], restaurants: [], vendors: [], drivers: [], vouchers: [], registrations: [] };
   // restaurantId → display name, derived from orders' denormalized
   // restaurantName (the restaurants doc itself often has no `name` for the
   // seeded test restaurants — their names live in the app's mock data).
   let _restNameById = {};
-  let _liveLoaded = { users: false, orders: false, restaurants: false, vendors: false, drivers: false, vouchers: false };
+  let _liveLoaded = { users: false, orders: false, restaurants: false, vendors: false, drivers: false, vouchers: false, registrations: false };
 
   function teardownLiveListeners() {
     _liveUnsubs.forEach((fn) => fn());
@@ -2027,6 +2044,8 @@
       _liveUnsubs.push(db.collection(envCol('drivers')).onSnapshot(onUpdate('drivers'), onErr('drivers')));
       // vouchers/{code} → surfaced on the Offers page.
       _liveUnsubs.push(db.collection(envCol('vouchers')).onSnapshot(onUpdate('vouchers'), onErr('vouchers')));
+      // registrations/{docId} → vendor onboarding pipeline + review queue.
+      _liveUnsubs.push(db.collection(envCol('registrations')).onSnapshot(onUpdate('registrations'), onErr('registrations')));
     });
   }
 
@@ -2227,6 +2246,34 @@
     });
     replaceAll(DB.deliveryOnboarding, deliveryOnboarding);
 
+    // ---- Vendor applications: registrations/{docId} (Phase 2 pipeline +
+    // Phase 6 review queue). Sorted actionable-first, then newest. ----
+    const STATUS_ORDER = { pending: 0, needs_changes: 1, approved: 2, rejected: 3 };
+    const onboarding = (_liveDocs.registrations || []).map((d) => {
+      const g = d.data();
+      const docs = Array.isArray(g.documents) ? g.documents.length : 0;
+      const flags = [
+        g.outletUnlisted ? '⚠ unlisted outlet' : '',
+        g.bouncedAt ? '✉ email bounced' : '',
+      ].filter(Boolean).join(' · ');
+      return {
+        id: d.id,
+        name: g.contactName || '—',
+        email: g.email || '—',
+        outlet: g.outletName || g.outletId || '—',
+        role: g.role || '—',
+        submitted: g.submittedAt && g.submittedAt.toDate ? formatDateTime(g.submittedAt.toDate()) : '—',
+        _ts: g.submittedAt && g.submittedAt.toMillis ? g.submittedAt.toMillis() : 0,
+        docs: `${docs} file${docs === 1 ? '' : 's'}`,
+        flags: flags || '—',
+        adminNote: g.adminNote || '',
+        status: g.status || 'pending',
+      };
+    }).sort((a, b) =>
+      (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9) || b._ts - a._ts);
+    replaceAll(DB.onboarding, onboarding);
+    if (currentPageKey === 'onboarding') renderResourcePage('onboarding');
+
     // ---- Dashboard KPIs ----
     const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     setText('kpi-revenue', money2(totalRevenue));
@@ -2346,6 +2393,112 @@
 
   // ---- Real-only resource pages: drop Add/Edit, keep View + the
   // block/suspend toggle which now also writes Firestore. ----
+  // ---------- Vendor onboarding (Phase 2 invite + pipeline, Phase 6 review) ----------
+  // Every action goes through a callable — the browser never writes claims or
+  // status changes itself. The registrations onSnapshot listener refreshes the
+  // pipeline automatically after the function writes.
+
+  function reviewVendorRegistration(row, action) {
+    const needsNote = action !== 'approve';
+    const titles = { approve: 'Approve application', needs_changes: 'Send back for changes', reject: 'Reject application' };
+    const intro = {
+      approve: `Approve <strong>${escapeHtml(row.name)}</strong> (${escapeHtml(row.outlet)})? This provisions their vendor account, unlocks the app, and emails them.`,
+      needs_changes: `Send <strong>${escapeHtml(row.name)}</strong>'s application back? They'll be routed to re-upload documents and will receive your note by email.`,
+      reject: `Reject <strong>${escapeHtml(row.name)}</strong>'s application? This is terminal — they cannot re-apply.`,
+    };
+    showModal({
+      title: titles[action],
+      bodyHtml: `<p>${intro[action]}</p>` + (needsNote ? `
+        <label style="display:block; font-size:12px; font-weight:600; margin:12px 0 6px;">${action === 'reject' ? 'Reason (emailed to the vendor)' : 'What needs fixing (emailed to the vendor)'}</label>
+        <textarea id="review-note" rows="3" style="width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font:inherit; font-size:13px;"></textarea>
+        <div id="review-note-err" style="color:#c62828; font-size:12px; min-height:1em; margin-top:4px;"></div>` : ''),
+      confirmLabel: { approve: 'Approve', needs_changes: 'Send back', reject: 'Reject' }[action],
+      danger: action === 'reject',
+      onConfirm: () => {
+        const note = needsNote ? (document.getElementById('review-note').value || '').trim() : '';
+        if (needsNote && !note) {
+          document.getElementById('review-note-err').textContent = 'A note is required for this action.';
+          return false;
+        }
+        callFn('reviewRegistration', { env: dataEnv(), registrationId: row.id, action, note })
+          .then(() => showToast(action === 'approve' ? `${row.name} approved — provisioning + email are running.` : `Application ${action === 'reject' ? 'rejected' : 'sent back'}; the vendor has been emailed.`))
+          .catch(() => {});
+        return true;
+      },
+    });
+  }
+
+  function resendVendorLoginLink(row) {
+    confirmAction(
+      `Resend the download + sign-in email to <strong>${escapeHtml(row.email)}</strong>? A fresh single-use login link is minted (rate-limited to 3 per 24h).`,
+      () => {
+        callFn('resendLoginLink', { env: dataEnv(), registrationId: row.id })
+          .then(() => showToast(`Invite email resent to ${row.email}.`))
+          .catch(() => {});
+      },
+      { title: 'Resend invite email', confirmLabel: 'Resend' },
+    );
+  }
+
+  function openInviteVendorModal() {
+    const outletOpts = DB.restaurants
+      .map((r) => `<option value="${escapeHtml(r.id)}" data-name="${escapeHtml(r.name)}">${escapeHtml(r.name)}</option>`)
+      .join('');
+    const field = (id, label, inner) => `
+      <div><label for="${id}" style="display:block; font-size:12px; font-weight:600; margin-bottom:5px;">${label}</label>${inner}</div>`;
+    const inputStyle = 'width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font:inherit; font-size:13px;';
+    showModal({
+      title: 'Invite a vendor',
+      bodyHtml: `<div class="form-grid">
+        <p style="margin:0; font-size:12.5px; color:var(--text-faint);">Creates the invite in the <strong>${dataEnv() === 'live' ? 'LIVE' : 'TEST'}</strong> environment (matches the Live/Testing switch) and emails the download + sign-in links.</p>
+        ${field('inv-name', 'Contact name', `<input id="inv-name" style="${inputStyle}">`)}
+        ${field('inv-email', 'Email', `<input id="inv-email" type="email" style="${inputStyle}">`)}
+        ${field('inv-phone', 'Phone (optional)', `<input id="inv-phone" type="tel" style="${inputStyle}">`)}
+        ${field('inv-outlet', 'Outlet', `<select id="inv-outlet" style="${inputStyle}"><option value="">— pick an outlet —</option>${outletOpts}</select>`)}
+        ${field('inv-branch', 'Branch ID (only if multi-branch)', `<input id="inv-branch" style="${inputStyle}">`)}
+        ${field('inv-location', 'Location (e.g. Building B3)', `<input id="inv-location" style="${inputStyle}">`)}
+        ${field('inv-role', 'Role', `<select id="inv-role" style="${inputStyle}">
+          <option value="vendor_admin">Vendor admin (owner)</option>
+          <option value="branch_manager">Branch manager</option>
+          <option value="staff">Staff</option>
+        </select>`)}
+        ${field('inv-terms', 'Commission terms (optional)', `<input id="inv-terms" style="${inputStyle}">`)}
+        <div id="inv-err" style="color:#c62828; font-size:12px; min-height:1em;"></div>
+      </div>`,
+      confirmLabel: 'Send invite',
+      onConfirm: () => {
+        const v = (id) => (document.getElementById(id).value || '').trim();
+        const err = document.getElementById('inv-err');
+        const outletSel = document.getElementById('inv-outlet');
+        if (!v('inv-name')) { err.textContent = 'Contact name is required.'; return false; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v('inv-email'))) { err.textContent = 'A valid email is required.'; return false; }
+        if (!v('inv-outlet')) { err.textContent = 'Pick the outlet this vendor runs.'; return false; }
+        err.textContent = '';
+        const btn = document.getElementById('modal-confirm');
+        btn.disabled = true; btn.textContent = 'Sending…';
+        callFn('inviteVendor', {
+          env: dataEnv(),
+          contactName: v('inv-name'),
+          email: v('inv-email'),
+          phone: v('inv-phone'),
+          outletId: v('inv-outlet'),
+          outletName: outletSel.selectedOptions[0] ? outletSel.selectedOptions[0].dataset.name : '',
+          branchId: v('inv-branch') || null,
+          location: v('inv-location'),
+          role: document.getElementById('inv-role').value,
+          commissionTerms: v('inv-terms') || null,
+        }).then(() => {
+          closeModal();
+          showToast('Invite sent — the vendor will receive the download + sign-in email.');
+        }).catch(() => {
+          btn.disabled = false; btn.textContent = 'Send invite';
+          err.textContent = 'Invite failed — see the toast/console for details.';
+        });
+        return false; // keep the modal open until the callable resolves
+      },
+    });
+  }
+
   function wireRealActions() {
     RESOURCE_CONFIG.customers.addable = false;
     RESOURCE_CONFIG.customers.actions = (row) => [
@@ -2413,6 +2566,38 @@
         }, { title: 'Update admin access', danger: r.status === 'active' });
       } },
     ];
+
+    // Vendor applications: real registrations pipeline + review queue.
+    const ob = RESOURCE_CONFIG.onboarding;
+    ob.singular = 'Vendor Invite';
+    ob.plural = 'Vendor Applications';
+    ob.addable = true;
+    ob.onAdd = openInviteVendorModal;
+    ob.dynamicSub = () => {
+      const p = DB.onboarding.filter((r) => r.status === 'pending').length;
+      const n = DB.onboarding.filter((r) => r.status === 'needs_changes').length;
+      return `${p} pending review · ${n} awaiting vendor changes`;
+    };
+    ob.columns = [
+      { key: 'name', label: 'Applicant', render: (r) => `<div class="cell-main">${escapeHtml(r.name)}</div><div class="cell-sub">${escapeHtml(r.email)}</div>` },
+      { key: 'outlet', label: 'Outlet' },
+      { key: 'role', label: 'Role' },
+      { key: 'submitted', label: 'Submitted' },
+      { key: 'docs', label: 'Docs' },
+      { key: 'flags', label: 'Flags' },
+      { key: 'status', label: 'Status', render: (r) => badgeHtml(r.status) },
+    ];
+    ob.actions = (row) => {
+      // Approve/decline only while actionable; the server guards double-approve
+      // too (processingLock), this just keeps the UI honest.
+      if (row.status !== 'pending' && row.status !== 'needs_changes') return [];
+      return [
+        { id: 'approve', label: 'Approve', onClick: (r) => reviewVendorRegistration(r, 'approve') },
+        { id: 'changes', label: 'Needs changes', onClick: (r) => reviewVendorRegistration(r, 'needs_changes') },
+        { id: 'reject', label: 'Reject', tone: 'danger', onClick: (r) => reviewVendorRegistration(r, 'reject') },
+        { id: 'resend', label: 'Resend email', onClick: resendVendorLoginLink },
+      ];
+    };
   }
 
   // Pages still on prototype demo data — shown with a banner.
@@ -2420,7 +2605,7 @@
   // foods/offers/owners/delivery-onboarding/revenue are now wired, so they're
   // no longer here.
   const DEMO_PAGES = new Set(['disputes', 'categories', 'cuisine',
-    'onboarding', 'payouts', 'commission', 'banners', 'documents']);
+    'payouts', 'commission', 'banners', 'documents']);
   const originalNavigateTo = navigateTo;
   navigateTo = function (pageKey) {
     originalNavigateTo(pageKey);
