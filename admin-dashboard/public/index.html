@@ -1919,6 +1919,34 @@
     }
   }
 
+  // Spark-plan fallback: Cloud Functions can't deploy without Blaze, so when a
+  // callable is unreachable we QUEUE the action by writing the registrations
+  // doc directly (admin-gated by firestore.rules) and scripts/onboarding_worker.js
+  // performs the privileged side effects (auth users, claims, magic links,
+  // emails) with the Admin SDK. Claims/status side effects still never happen
+  // in the browser. Once the project upgrades to Blaze and functions deploy,
+  // the callable path wins automatically and the worker retires.
+  function fnUnreachable(e) {
+    const c = String((e && e.code) || '');
+    return c.includes('not-found') || c.includes('unavailable') || c.includes('internal');
+  }
+  async function callOrQueue(name, data, queueWrite) {
+    try {
+      const res = await fns.httpsCallable(name)(data);
+      return { via: 'function', data: res.data };
+    } catch (e) {
+      if (!fnUnreachable(e)) {
+        console.error(`[Admin] ${name} failed`, e);
+        showToast(`${name}: ${(e && e.message) || 'Request failed.'}`);
+        throw e;
+      }
+      console.warn(`[Admin] ${name} unreachable (Spark plan) — queueing for the worker`, e);
+      await queueWrite();
+      return { via: 'queue' };
+    }
+  }
+  const QUEUED_MSG = 'Queued — run the onboarding worker (scripts/onboarding_worker.js) to send the email.';
+
   // ---------- Environment (LIVE vs TEST) data separation ----------
   // Two environments share one Firebase project via a collection-name prefix:
   //   TEST  → unprefixed collections (orders, users, ...) — all current data.
@@ -2420,8 +2448,16 @@
           document.getElementById('review-note-err').textContent = 'A note is required for this action.';
           return false;
         }
-        callFn('reviewRegistration', { env: dataEnv(), registrationId: row.id, action, note })
-          .then(() => showToast(action === 'approve' ? `${row.name} approved — provisioning + email are running.` : `Application ${action === 'reject' ? 'rejected' : 'sent back'}; the vendor has been emailed.`))
+        const nextStatus = { approve: 'approved', needs_changes: 'needs_changes', reject: 'rejected' }[action];
+        callOrQueue('reviewRegistration', { env: dataEnv(), registrationId: row.id, action, note },
+          () => db.collection(envCol('registrations')).doc(row.id).update({
+            status: nextStatus,
+            adminNote: note,
+            reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          }),
+        ).then((r) => showToast(r.via === 'queue'
+          ? `Marked ${nextStatus}. ${QUEUED_MSG}`
+          : (action === 'approve' ? `${row.name} approved — provisioning + email are running.` : `Application ${action === 'reject' ? 'rejected' : 'sent back'}; the vendor has been emailed.`)))
           .catch(() => {});
         return true;
       },
@@ -2432,8 +2468,9 @@
     confirmAction(
       `Resend the download + sign-in email to <strong>${escapeHtml(row.email)}</strong>? A fresh single-use login link is minted (rate-limited to 3 per 24h).`,
       () => {
-        callFn('resendLoginLink', { env: dataEnv(), registrationId: row.id })
-          .then(() => showToast(`Invite email resent to ${row.email}.`))
+        callOrQueue('resendLoginLink', { env: dataEnv(), registrationId: row.id },
+          () => db.collection(envCol('registrations')).doc(row.id).update({ resendQueued: true }),
+        ).then((r) => showToast(r.via === 'queue' ? `Resend queued. ${QUEUED_MSG}` : `Invite email resent to ${row.email}.`))
           .catch(() => {});
       },
       { title: 'Resend invite email', confirmLabel: 'Resend' },
@@ -2476,7 +2513,7 @@
         err.textContent = '';
         const btn = document.getElementById('modal-confirm');
         btn.disabled = true; btn.textContent = 'Sending…';
-        callFn('inviteVendor', {
+        const payload = {
           env: dataEnv(),
           contactName: v('inv-name'),
           email: v('inv-email'),
@@ -2487,9 +2524,24 @@
           location: v('inv-location'),
           role: document.getElementById('inv-role').value,
           commissionTerms: v('inv-terms') || null,
-        }).then(() => {
+        };
+        callOrQueue('inviteVendor', payload,
+          // Direct create obeys the registrations create rule: status pending,
+          // no uid / processingLock. emailQueued flags it for the worker.
+          () => db.collection(envCol('registrations')).add({
+            type: 'vendor', status: 'pending', environment: payload.env,
+            contactName: payload.contactName, email: payload.email.toLowerCase(),
+            phone: payload.phone, outletId: payload.outletId, outletName: payload.outletName,
+            branchId: payload.branchId, location: payload.location, role: payload.role,
+            commissionTerms: payload.commissionTerms,
+            documents: [], detailsConfirmed: false, passwordSet: false,
+            emailQueued: true, adminNote: '',
+            invitedByRepId: auth.currentUser ? auth.currentUser.uid : null,
+            submittedAt: firebase.firestore.FieldValue.serverTimestamp(), reviewedAt: null,
+          }),
+        ).then((r) => {
           closeModal();
-          showToast('Invite sent — the vendor will receive the download + sign-in email.');
+          showToast(r.via === 'queue' ? `Invite queued. ${QUEUED_MSG}` : 'Invite sent — the vendor will receive the download + sign-in email.');
         }).catch(() => {
           btn.disabled = false; btn.textContent = 'Send invite';
           err.textContent = 'Invite failed — see the toast/console for details.';

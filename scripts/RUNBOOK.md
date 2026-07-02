@@ -145,3 +145,31 @@ cd "C:\Users\syedf\Desktop\Furqaan\Uni Eats v2"
 firebase deploy --only firestore:rules
 firebase deploy --only firestore:indexes
 ```
+
+---
+
+## 9. Vendor onboarding worker (Spark plan — no Cloud Functions)
+
+The project can't deploy Cloud Functions without Blaze, so the dashboard
+queues onboarding actions on the registration docs and this worker performs
+the privileged side effects (auth users, claims, magic links, Resend emails):
+
+```powershell
+cd "C:\Users\syedf\Desktop\Furqaan\Uni Eats v2\scripts"
+node onboarding_worker.js              # one pass, TEST env
+node onboarding_worker.js --env live   # one pass, LIVE env
+node onboarding_worker.js --watch      # keep running, poll every 30s
+```
+
+Run it after clicking Invite / Approve / Needs changes / Reject / Resend in
+the dashboard (the toast reminds you). Config lives in `scripts/.env`
+(gitignored): RESEND_API_KEY, RESEND_FROM, SERVICE_ACCOUNT path, etc.
+
+Email caveats until `theunieats.com` is verified at resend.com/domains:
+sends only reach the Resend account owner's address (mujtaba.shahid19@gmail.com).
+Vendor documents upload to Cloudinary (unsigned preset `vendor_docs` —
+create it once: Cloudinary console → Settings → Upload → Add upload preset →
+name `vendor_docs`, Signing Mode: Unsigned, folder `vendor-docs`).
+
+When the project upgrades to Blaze: `firebase deploy --only functions,storage`
+— the dashboard automatically prefers the callables and the worker retires.
