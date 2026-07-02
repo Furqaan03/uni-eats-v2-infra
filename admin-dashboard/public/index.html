@@ -604,7 +604,7 @@
     <div class="nav-group" data-group="partners">
       <button class="nav-group-header" data-toggle-group="partners">
         <span class="nav-icon">⌘</span><span class="nav-label">Partners</span>
-        <span class="nav-badge demo" id="badge-onboarding" title="Demo data — onboarding approvals aren't tracked in Firestore yet">3</span><span class="nav-chevron">▸</span>
+        <span class="nav-badge demo" id="badge-onboarding" style="display:none;" title="Onboarding approvals aren't tracked in Firestore yet">0</span><span class="nav-chevron">▸</span>
       </button>
       <div class="nav-sub-list"><div class="nav-sub-list-inner">
         <button class="nav-sub-item" data-page="restaurants" data-title="Restaurants" data-sub="All onboarded restaurants">Restaurants</button>
@@ -628,7 +628,7 @@
     <div class="nav-group" data-group="finance">
       <button class="nav-group-header" data-toggle-group="finance">
         <span class="nav-icon">฿</span><span class="nav-label">Finance</span>
-        <span class="nav-badge demo" id="badge-payouts" title="Demo data — payout requests aren't tracked in Firestore yet">5</span><span class="nav-chevron">▸</span>
+        <span class="nav-badge demo" id="badge-payouts" style="display:none;" title="Payout requests aren't tracked in Firestore yet">0</span><span class="nav-chevron">▸</span>
       </button>
       <div class="nav-sub-list"><div class="nav-sub-list-inner">
         <button class="nav-sub-item" data-page="payouts" data-title="Payout Requests" data-sub="5 requests pending review">Payout Requests</button>
@@ -699,7 +699,7 @@
       🧪 You're viewing <strong>Testing</strong> data — isolated from live orders, customers and payouts. Anything you do here is safe to break.
     </div>
     <div class="env-banner" id="demo-banner" style="display:none; background:#fff3cd; color:#7a5b00; border-bottom:1px solid #f0d98a;">
-      🧪 This page shows prototype/demo data — it isn't connected to the live database yet.
+      🧪 This page isn't connected to a live data source yet — it will stay empty until one is wired up.
     </div>
 
     <div class="content" id="content">
@@ -710,10 +710,10 @@
         <section class="block">
           <div class="section-head"><h2>Needs your attention</h2></div>
           <div class="action-row">
-            <button class="chip tone-warn" data-page="onboarding" data-toast="Opening Onboarding / Approvals">⏳ <span id="chip-onboarding-count">3</span> Restaurant Approvals Pending</button>
-            <button class="chip tone-warn" data-page="payouts" data-toast="Opening Payout Requests">฿ <span id="chip-payouts-count">5</span> Payout Requests</button>
-            <button class="chip tone-danger" data-page="disputes" data-toast="Opening Disputes / Refunds">⚠ <span id="chip-disputes-count">2</span> Open Disputes</button>
-            <button class="chip tone-warn" data-page="delivery-onboarding" data-toast="Opening Delivery Onboarding">🛵 <span id="chip-driveronboarding-count">4</span> Drivers Awaiting Verification</button>
+            <button class="chip tone-warn" data-page="onboarding" data-toast="Opening Onboarding / Approvals" style="display:none;">⏳ <span id="chip-onboarding-count">0</span> Restaurant Approvals Pending</button>
+            <button class="chip tone-warn" data-page="payouts" data-toast="Opening Payout Requests" style="display:none;">฿ <span id="chip-payouts-count">0</span> Payout Requests</button>
+            <button class="chip tone-danger" data-page="disputes" data-toast="Opening Disputes / Refunds" style="display:none;">⚠ <span id="chip-disputes-count">0</span> Open Disputes</button>
+            <button class="chip tone-warn" data-page="delivery-onboarding" data-toast="Opening Delivery Onboarding" style="display:none;">🛵 <span id="chip-driveronboarding-count">0</span> Drivers Awaiting Verification</button>
           </div>
         </section>
 
@@ -751,26 +751,14 @@
         <section class="block">
           <div class="section-head">
             <h2>Profit Overview</h2>
-            <span class="trend-pill" style="background:var(--surface-2); color:var(--muted);" title="No commission-rate model exists yet, so this can't be computed from real data.">Demo data — no commission model yet</span>
+            <span class="trend-pill" style="background:var(--surface-2); color:var(--muted);" title="No commission-rate model exists yet, so this can't be computed from real data.">No commission model yet — not computed</span>
           </div>
           <div class="profit-stats">
-            <div class="stat-card"><div class="stat-label">This Month</div><div class="stat-value">QAR 2,585.20</div></div>
-            <div class="stat-card"><div class="stat-label">Last Month</div><div class="stat-value">QAR 3,103.00</div></div>
-            <div class="stat-card commission"><div class="stat-label">Total Commission</div><div class="stat-value">QAR 568.82</div></div>
-            <div class="stat-card commission"><div class="stat-label">Commission This Month</div><div class="stat-value">QAR 258.52</div></div>
-            <div class="stat-card commission"><div class="stat-label">Commission Last Month</div><div class="stat-value">QAR 310.30</div></div>
-          </div>
-          <div class="chart-card">
-            <div class="bar-chart">
-              <div class="bar-col">
-                <div class="bar-wrap"><div class="bar last" style="height:84%"><span class="bar-value">3,103.0</span></div></div>
-                <div class="bar-col-label">Last Month</div>
-              </div>
-              <div class="bar-col">
-                <div class="bar-wrap"><div class="bar this" style="height:70%"><span class="bar-value">2,585.2</span></div></div>
-                <div class="bar-col-label">This Month</div>
-              </div>
-            </div>
+            <div class="stat-card"><div class="stat-label">This Month</div><div class="stat-value">—</div></div>
+            <div class="stat-card"><div class="stat-label">Last Month</div><div class="stat-value">—</div></div>
+            <div class="stat-card commission"><div class="stat-label">Total Commission</div><div class="stat-value">—</div></div>
+            <div class="stat-card commission"><div class="stat-label">Commission This Month</div><div class="stat-value">—</div></div>
+            <div class="stat-card commission"><div class="stat-label">Commission Last Month</div><div class="stat-value">—</div></div>
           </div>
         </section>
 
@@ -920,186 +908,31 @@
   const genId = (prefix) => `${prefix}-${seq++}`;
   const money = (n) => 'QAR ' + Number(n).toFixed(2);
 
+  // All collections start empty. The ones with a real Firestore source
+  // (customers, restaurants, deliveryBoys, liveOrders, orderHistory, admins,
+  // nameRequests) are populated at runtime by loadRealData()/loadAdmins()/
+  // loadNameChangeRequests(). The rest have no live source wired yet and show
+  // an empty state until one is added — no fabricated demo rows.
   const DB = {
-    customers: [
-      { id: 'CU-101', name: 'Ahmed K.', email: 'ahmed.k@udst.edu.qa', phone: '+974 5511 2233', university: 'UDST', orders: 14, spend: 612.50, joined: '2025-09-02', status: 'active' },
-      { id: 'CU-102', name: 'Layla M.', email: 'layla.m@udst.edu.qa', phone: '+974 5522 3344', university: 'UDST', orders: 9, spend: 341.00, joined: '2025-09-10', status: 'active' },
-      { id: 'CU-103', name: 'Omar S.', email: 'omar.s@udst.edu.qa', phone: '+974 5533 4455', university: 'UDST', orders: 21, spend: 894.25, joined: '2025-08-21', status: 'active' },
-      { id: 'CU-104', name: 'Fatima A.', email: 'fatima.a@udst.edu.qa', phone: '+974 5544 5566', university: 'UDST', orders: 5, spend: 152.00, joined: '2025-10-04', status: 'active' },
-      { id: 'CU-105', name: 'Hassan R.', email: 'hassan.r@udst.edu.qa', phone: '+974 5555 6677', university: 'UDST', orders: 2, spend: 48.50, joined: '2025-11-15', status: 'blocked' },
-      { id: 'CU-106', name: 'Maryam T.', email: 'maryam.t@udst.edu.qa', phone: '+974 5566 7788', university: 'UDST', orders: 17, spend: 705.75, joined: '2025-07-30', status: 'active' },
-      { id: 'CU-107', name: 'Khalid N.', email: 'khalid.n@udst.edu.qa', phone: '+974 5577 8899', university: 'UDST', orders: 8, spend: 296.00, joined: '2025-09-22', status: 'active' },
-      { id: 'CU-108', name: 'Noora F.', email: 'noora.f@udst.edu.qa', phone: '+974 5588 9900', university: 'UDST', orders: 11, spend: 402.30, joined: '2025-10-18', status: 'active' },
-      { id: 'CU-109', name: 'Yusuf R.', email: 'yusuf.r@udst.edu.qa', phone: '+974 5599 0011', university: 'UDST', orders: 3, spend: 88.00, joined: '2025-11-02', status: 'active' },
-      { id: 'CU-110', name: 'Sara B.', email: 'sara.b@udst.edu.qa', phone: '+974 5500 1122', university: 'UDST', orders: 0, spend: 0, joined: '2026-06-01', status: 'active' },
-      { id: 'CU-111', name: 'Ali H.', email: 'ali.h@udst.edu.qa', phone: '+974 5611 2233', university: 'UDST', orders: 6, spend: 210.40, joined: '2025-12-09', status: 'active' },
-      { id: 'CU-112', name: 'Dana W.', email: 'dana.w@udst.edu.qa', phone: '+974 5622 3344', university: 'UDST', orders: 1, spend: 24.00, joined: '2026-01-12', status: 'blocked' }
-    ],
-    liveOrders: [
-      { id: '#1051', customer: 'Ahmed K.', restaurant: 'Burger Barn', items: 3, total: 64.00, status: 'pending', placed: '2 m ago' },
-      { id: '#1050', customer: 'Layla M.', restaurant: 'Spice House', items: 2, total: 28.50, status: 'pending', placed: '4 m ago' },
-      { id: '#1049', customer: 'Omar S.', restaurant: 'Pizza Palace', items: 1, total: 45.00, status: 'preparing', placed: '9 m ago' },
-      { id: '#1048', customer: 'Fatima A.', restaurant: 'Wrap Works', items: 4, total: 52.75, status: 'preparing', placed: '12 m ago' },
-      { id: '#1047', customer: 'Hassan R.', restaurant: 'Sushi Stop', items: 2, total: 71.20, status: 'out', placed: '15 m ago' },
-      { id: '#1046', customer: 'Maryam T.', restaurant: 'Burger Barn', items: 1, total: 22.00, status: 'pending', placed: '17 m ago' },
-      { id: '#1045', customer: 'Khalid N.', restaurant: 'Curry Corner', items: 3, total: 58.40, status: 'out', placed: '19 m ago' },
-      { id: '#1044', customer: 'Noora F.', restaurant: 'Spice House', items: 2, total: 33.10, status: 'preparing', placed: '22 m ago' },
-      { id: '#1043', customer: 'Yusuf R.', restaurant: 'Taco Town', items: 1, total: 18.00, status: 'pending', placed: '25 m ago' },
-      { id: '#1042', customer: 'Ahmed K.', restaurant: 'Burger Barn', items: 2, total: 64.00, status: 'out', placed: '27 m ago' },
-      { id: '#1041', customer: 'Layla M.', restaurant: 'Spice House', items: 1, total: 28.50, status: 'pending', placed: '31 m ago' },
-      { id: '#1040', customer: 'Omar S.', restaurant: 'Pizza Palace', items: 3, total: 91.20, status: 'preparing', placed: '34 m ago' }
-    ],
-    orderHistory: [
-      { id: '#1039', customer: 'Sara B.', restaurant: 'Burger Barn', total: 38.00, date: '2026-06-15', status: 'delivered' },
-      { id: '#1038', customer: 'Ali H.', restaurant: 'Pizza Palace', total: 28.00, date: '2026-06-15', status: 'delivered' },
-      { id: '#1037', customer: 'Dana W.', restaurant: 'Wrap Works', total: 24.00, date: '2026-06-14', status: 'cancelled' },
-      { id: '#1036', customer: 'Khalid N.', restaurant: 'Spice House', total: 33.50, date: '2026-06-14', status: 'delivered' },
-      { id: '#1035', customer: 'Maryam T.', restaurant: 'Burger Barn', total: 34.50, date: '2026-06-14', status: 'delivered' },
-      { id: '#1034', customer: 'Noora F.', restaurant: 'Curry Corner', total: 41.20, date: '2026-06-13', status: 'delivered' },
-      { id: '#1033', customer: 'Hassan R.', restaurant: 'Sushi Stop', total: 55.00, date: '2026-06-13', status: 'cancelled' },
-      { id: '#1032', customer: 'Fatima A.', restaurant: 'Taco Town', total: 19.50, date: '2026-06-12', status: 'delivered' },
-      { id: '#1031', customer: 'Omar S.', restaurant: 'Pizza Palace', total: 62.00, date: '2026-06-12', status: 'delivered' },
-      { id: '#1030', customer: 'Ahmed K.', restaurant: 'Burger Barn', total: 64.00, date: '2026-06-11', status: 'delivered' },
-      { id: '#1029', customer: 'Noora F.', restaurant: 'Spice House', total: 22.00, date: '2026-06-11', status: 'delivered' },
-      { id: '#1021', customer: 'Khalid N.', restaurant: 'Wrap Works', total: 19.50, date: '2026-06-08', status: 'cancelled' }
-    ],
-    disputes: [
-      { id: 'DP-01', order: '#1038', customer: 'Ali H.', restaurant: 'Pizza Palace', reason: 'Missing items', amount: 28.00, status: 'open' },
-      { id: 'DP-02', order: '#1035', customer: 'Maryam T.', restaurant: 'Burger Barn', reason: 'Order arrived late & cold', amount: 34.50, status: 'open' },
-      { id: 'DP-03', order: '#1029', customer: 'Noora F.', restaurant: 'Spice House', reason: 'Wrong item delivered', amount: 22.00, status: 'resolved' },
-      { id: 'DP-04', order: '#1021', customer: 'Khalid N.', restaurant: 'Wrap Works', reason: 'Refund requested — quality', amount: 19.50, status: 'rejected' }
-    ],
-    foods: [
-      { id: 'FD-01', name: 'Zinger Burger', restaurant: 'Burger Barn', category: 'Burgers', cuisine: 'American', price: 18.00, status: 'active' },
-      { id: 'FD-02', name: 'Cheese Smash Burger', restaurant: 'Burger Barn', category: 'Burgers', cuisine: 'American', price: 21.00, status: 'active' },
-      { id: 'FD-03', name: 'Chicken Shawarma', restaurant: 'Wrap Works', category: 'Wraps', cuisine: 'Middle Eastern', price: 14.00, status: 'active' },
-      { id: 'FD-04', name: 'Beef Shawarma Wrap', restaurant: 'Wrap Works', category: 'Wraps', cuisine: 'Middle Eastern', price: 15.50, status: 'active' },
-      { id: 'FD-05', name: 'Beef Pizza', restaurant: 'Pizza Palace', category: 'Pizza', cuisine: 'Italian', price: 38.00, status: 'active' },
-      { id: 'FD-06', name: 'Margherita Pizza', restaurant: 'Pizza Palace', category: 'Pizza', cuisine: 'Italian', price: 32.00, status: 'active' },
-      { id: 'FD-07', name: 'Veggie Wrap', restaurant: 'Wrap Works', category: 'Wraps', cuisine: 'Middle Eastern', price: 12.00, status: 'active' },
-      { id: 'FD-08', name: 'Mango Lassi', restaurant: 'Spice House', category: 'Beverages', cuisine: 'Indian', price: 9.00, status: 'active' },
-      { id: 'FD-09', name: 'Butter Chicken', restaurant: 'Spice House', category: 'Curries', cuisine: 'Indian', price: 29.00, status: 'active' },
-      { id: 'FD-10', name: 'Paneer Tikka', restaurant: 'Curry Corner', category: 'Curries', cuisine: 'Indian', price: 24.00, status: 'active' },
-      { id: 'FD-11', name: 'California Roll', restaurant: 'Sushi Stop', category: 'Sushi', cuisine: 'Asian', price: 35.00, status: 'active' },
-      { id: 'FD-12', name: 'Spicy Tuna Roll', restaurant: 'Sushi Stop', category: 'Sushi', cuisine: 'Asian', price: 40.00, status: 'inactive' },
-      { id: 'FD-13', name: 'Beef Tacos (3pc)', restaurant: 'Taco Town', category: 'Tacos', cuisine: 'Mexican', price: 22.00, status: 'active' },
-      { id: 'FD-14', name: 'Churros', restaurant: 'Taco Town', category: 'Desserts', cuisine: 'Mexican', price: 11.00, status: 'active' }
-    ],
-    categories: [
-      { id: 'CT-01', name: 'Burgers', foods: 2, status: 'active' },
-      { id: 'CT-02', name: 'Wraps', foods: 3, status: 'active' },
-      { id: 'CT-03', name: 'Pizza', foods: 2, status: 'active' },
-      { id: 'CT-04', name: 'Curries', foods: 2, status: 'active' },
-      { id: 'CT-05', name: 'Sushi', foods: 2, status: 'active' },
-      { id: 'CT-06', name: 'Desserts', foods: 1, status: 'active' }
-    ],
-    cuisines: [
-      { id: 'CSN-01', name: 'American', restaurants: 2, status: 'active' },
-      { id: 'CSN-02', name: 'Middle Eastern', restaurants: 1, status: 'active' },
-      { id: 'CSN-03', name: 'Italian', restaurants: 1, status: 'active' },
-      { id: 'CSN-04', name: 'Indian', restaurants: 2, status: 'active' },
-      { id: 'CSN-05', name: 'Asian', restaurants: 1, status: 'active' },
-      { id: 'CSN-06', name: 'Mexican', restaurants: 1, status: 'active' }
-    ],
-    offers: [
-      { id: 'OF-01', title: 'Welcome10', code: 'WELCOME10', discount: '10% off', scope: 'All Restaurants', expires: '2026-07-01', status: 'active' },
-      { id: 'OF-02', title: 'Burger Barn Combo Deal', code: 'BBCOMBO', discount: 'QAR 5 off', scope: 'Burger Barn', expires: '2026-06-30', status: 'active' },
-      { id: 'OF-03', title: 'Free Delivery Friday', code: 'FREEFRI', discount: 'Free delivery', scope: 'All Restaurants', expires: '2026-06-20', status: 'scheduled' },
-      { id: 'OF-04', title: 'Spice House Lunch Special', code: 'SPICELUNCH', discount: '15% off', scope: 'Spice House', expires: '2026-06-25', status: 'active' },
-      { id: 'OF-05', title: 'Ramadan Promo', code: 'RAMADAN25', discount: '20% off', scope: 'All Restaurants', expires: '2026-03-30', status: 'expired' },
-      { id: 'OF-06', title: 'New User Bonus', code: 'NEWBIE', discount: 'QAR 10 off first order', scope: 'All Restaurants', expires: '2026-12-31', status: 'active' }
-    ],
-    restaurants: [
-      { id: 'RS-01', name: 'Burger Barn', owner: 'Mohammed Al-Sayed', cuisine: 'American', orders: 61, rating: 4.6, status: 'active' },
-      { id: 'RS-02', name: 'Spice House', owner: 'Aisha Khan', cuisine: 'Indian', orders: 17, rating: 4.4, status: 'active' },
-      { id: 'RS-03', name: 'Pizza Palace', owner: 'Marco Rossi', cuisine: 'Italian', orders: 13, rating: 4.2, status: 'active' },
-      { id: 'RS-04', name: 'Wrap Works', owner: 'Sara Haddad', cuisine: 'Middle Eastern', orders: 12, rating: 4.5, status: 'active' },
-      { id: 'RS-05', name: 'Sushi Stop', owner: 'Kenji Watanabe', cuisine: 'Asian', orders: 9, rating: 4.7, status: 'active' },
-      { id: 'RS-06', name: 'Taco Town', owner: 'Diego Martinez', cuisine: 'Mexican', orders: 6, rating: 4.0, status: 'suspended' },
-      { id: 'RS-07', name: 'Curry Corner', owner: 'Aisha Khan', cuisine: 'Indian', orders: 4, rating: 4.1, status: 'active' },
-      { id: 'RS-08', name: 'Grill House', owner: 'Mohammed Al-Sayed', cuisine: 'American', orders: 0, rating: 0, status: 'active' }
-    ],
-    owners: [
-      { id: 'OW-01', name: 'Mohammed Al-Sayed', email: 'm.sayed@partners.unieats.qa', phone: '+974 4011 2233', restaurants: 2, status: 'active' },
-      { id: 'OW-02', name: 'Aisha Khan', email: 'a.khan@partners.unieats.qa', phone: '+974 4022 3344', restaurants: 2, status: 'active' },
-      { id: 'OW-03', name: 'Marco Rossi', email: 'm.rossi@partners.unieats.qa', phone: '+974 4033 4455', restaurants: 1, status: 'active' },
-      { id: 'OW-04', name: 'Sara Haddad', email: 's.haddad@partners.unieats.qa', phone: '+974 4044 5566', restaurants: 1, status: 'active' },
-      { id: 'OW-05', name: 'Kenji Watanabe', email: 'k.watanabe@partners.unieats.qa', phone: '+974 4055 6677', restaurants: 1, status: 'active' },
-      { id: 'OW-06', name: 'Diego Martinez', email: 'd.martinez@partners.unieats.qa', phone: '+974 4066 7788', restaurants: 1, status: 'suspended' }
-    ],
-    onboarding: [
-      { id: 'ON-01', name: 'Noodle Nest', owner: 'Li Wei', cuisine: 'Asian', submitted: '2026-06-14', docs: 'Complete', status: 'pending' },
-      { id: 'ON-02', name: 'Tasty Bowl', owner: 'Priya Nair', cuisine: 'Indian', submitted: '2026-06-13', docs: 'Complete', status: 'pending' },
-      { id: 'ON-03', name: 'Falafel Express', owner: 'Rami Nassar', cuisine: 'Middle Eastern', submitted: '2026-06-12', docs: 'Missing trade license', status: 'pending' }
-    ],
-    deliveryBoys: [
-      { id: 'DB-01', name: 'Yusuf R.', phone: '+974 6611 2233', vehicle: 'Scooter', deliveries: 212, rating: 4.8, status: 'active' },
-      { id: 'DB-02', name: 'Karim S.', phone: '+974 6622 3344', vehicle: 'Bicycle', deliveries: 156, rating: 4.6, status: 'active' },
-      { id: 'DB-03', name: 'Tariq M.', phone: '+974 6633 4455', vehicle: 'Scooter', deliveries: 198, rating: 4.7, status: 'active' },
-      { id: 'DB-04', name: 'Bilal A.', phone: '+974 6644 5566', vehicle: 'Car', deliveries: 89, rating: 4.3, status: 'active' },
-      { id: 'DB-05', name: 'Hamza Q.', phone: '+974 6655 6677', vehicle: 'Scooter', deliveries: 134, rating: 4.5, status: 'active' },
-      { id: 'DB-06', name: 'Adam J.', phone: '+974 6666 7788', vehicle: 'Bicycle', deliveries: 67, rating: 4.2, status: 'suspended' },
-      { id: 'DB-07', name: 'Nasser F.', phone: '+974 6677 8899', vehicle: 'Scooter', deliveries: 177, rating: 4.6, status: 'active' },
-      { id: 'DB-08', name: 'Saif K.', phone: '+974 6688 9900', vehicle: 'Car', deliveries: 45, rating: 4.1, status: 'active' },
-      { id: 'DB-09', name: 'Waleed H.', phone: '+974 6699 0011', vehicle: 'Scooter', deliveries: 120, rating: 4.4, status: 'active' },
-      { id: 'DB-10', name: 'Ibrahim D.', phone: '+974 6600 1122', vehicle: 'Bicycle', deliveries: 33, rating: 4.0, status: 'active' }
-    ],
-    deliveryOnboarding: [
-      { id: 'DO-01', name: 'Yousef T.', phone: '+974 6711 2233', vehicle: 'Scooter', submitted: '2026-06-15', docs: 'Complete', status: 'pending' },
-      { id: 'DO-02', name: 'Rashid B.', phone: '+974 6722 3344', vehicle: 'Bicycle', submitted: '2026-06-14', docs: 'Complete', status: 'pending' },
-      { id: 'DO-03', name: 'Faisal G.', phone: '+974 6733 4455', vehicle: 'Car', submitted: '2026-06-13', docs: 'Missing license', status: 'pending' },
-      { id: 'DO-04', name: 'Majid E.', phone: '+974 6744 5566', vehicle: 'Scooter', submitted: '2026-06-12', docs: 'Complete', status: 'pending' }
-    ],
-    payouts: [
-      { id: 'PO-01', recipient: 'Burger Barn', type: 'Restaurant', amount: 842.50, requested: '2026-06-13', status: 'pending' },
-      { id: 'PO-02', recipient: 'Spice House', type: 'Restaurant', amount: 310.00, requested: '2026-06-13', status: 'pending' },
-      { id: 'PO-03', recipient: 'Yusuf R.', type: 'Driver', amount: 96.20, requested: '2026-06-14', status: 'pending' },
-      { id: 'PO-04', recipient: 'Karim S.', type: 'Driver', amount: 74.80, requested: '2026-06-14', status: 'pending' },
-      { id: 'PO-05', recipient: 'Wrap Works', type: 'Restaurant', amount: 215.30, requested: '2026-06-15', status: 'pending' }
-    ],
-    commission: [
-      { restaurant: 'Burger Barn', orders: 61, gross: 1860.40, rate: '10%', commission: 186.04 },
-      { restaurant: 'Spice House', orders: 17, gross: 512.30, rate: '10%', commission: 51.23 },
-      { restaurant: 'Pizza Palace', orders: 13, gross: 430.00, rate: '12%', commission: 51.60 },
-      { restaurant: 'Wrap Works', orders: 12, gross: 298.50, rate: '10%', commission: 29.85 },
-      { restaurant: 'Sushi Stop', orders: 9, gross: 340.00, rate: '12%', commission: 40.80 },
-      { restaurant: 'Taco Town', orders: 6, gross: 132.00, rate: '10%', commission: 13.20 },
-      { restaurant: 'Curry Corner', orders: 4, gross: 96.80, rate: '10%', commission: 9.68 },
-      { restaurant: 'Grill House', orders: 0, gross: 0, rate: '10%', commission: 0 }
-    ],
-    revenue: [
-      { date: '2026-06-09', orders: 32, revenue: 712.40, commission: 71.24 },
-      { date: '2026-06-10', orders: 29, revenue: 655.10, commission: 65.51 },
-      { date: '2026-06-11', orders: 35, revenue: 801.20, commission: 80.12 },
-      { date: '2026-06-12', orders: 30, revenue: 698.00, commission: 69.80 },
-      { date: '2026-06-13', orders: 37, revenue: 842.60, commission: 84.26 },
-      { date: '2026-06-14', orders: 41, revenue: 912.30, commission: 91.23 },
-      { date: '2026-06-15', orders: 38, revenue: 866.50, commission: 86.65 }
-    ],
-    banners: [
-      { id: 'BN-01', title: 'Ramadan Mega Offers', subtitle: 'Up to 20% off all restaurants', link: '/offers/ramadan', position: 'Home Top', status: 'active' },
-      { id: 'BN-02', title: 'Free Delivery Fridays', subtitle: 'No delivery fee every Friday', link: '/offers/freefri', position: 'Home Carousel', status: 'active' },
-      { id: 'BN-03', title: 'New: Sushi Stop on campus', subtitle: 'Order fresh sushi now', link: '/restaurant/sushi-stop', position: 'Home Carousel', status: 'scheduled' },
-      { id: 'BN-04', title: 'Exam Week Fuel-Up', subtitle: 'Late night menu now available', link: '/collections/late-night', position: 'Home Bottom', status: 'draft' }
-    ],
-    documents: [
-      { id: 'DC-01', name: 'Trade License — Burger Barn', owner: 'Mohammed Al-Sayed', type: 'Trade License', uploaded: '2025-08-01', status: 'verified' },
-      { id: 'DC-02', name: 'Food Safety Cert — Spice House', owner: 'Aisha Khan', type: 'Food Safety', uploaded: '2025-08-05', status: 'verified' },
-      { id: 'DC-03', name: 'Trade License — Pizza Palace', owner: 'Marco Rossi', type: 'Trade License', uploaded: '2025-09-12', status: 'verified' },
-      { id: 'DC-04', name: 'Trade License — Noodle Nest', owner: 'Li Wei', type: 'Trade License', uploaded: '2026-06-14', status: 'pending' },
-      { id: 'DC-05', name: 'ID Verification — Yousef T.', owner: 'Yousef T.', type: 'Driver ID', uploaded: '2026-06-15', status: 'pending' },
-      { id: 'DC-06', name: 'Food Safety Cert — Taco Town', owner: 'Diego Martinez', type: 'Food Safety', uploaded: '2025-10-20', status: 'expired' }
-    ],
-    admins: [
-      { id: 'AD-01', name: 'Mujii', email: 'info@theunieats.com', role: 'super_admin', testAccount: 'no', status: 'active' },
-      { id: 'AD-02', name: 'Sara Al-Mansoori', email: 'sara.ops@unieats.qa', role: 'operations', testAccount: 'no', status: 'active' },
-      { id: 'AD-03', name: 'Yousef Khan', email: 'yousef.finance@unieats.qa', role: 'finance', testAccount: 'no', status: 'active' },
-      { id: 'AD-04', name: 'Maya Haddad', email: 'maya.support@unieats.qa', role: 'support', testAccount: 'no', status: 'active' },
-      { id: 'AD-05', name: 'QA Runner 01', email: 'qa01@unieats.qa', role: 'qa', testAccount: 'yes', status: 'active' },
-      { id: 'AD-06', name: 'Tariq Saeed', email: 'tariq.old@unieats.qa', role: 'operations', testAccount: 'no', status: 'suspended' }
-    ],
-    // Real data only — replaced by loadNameChangeRequests(), never seeded
-    // with demo rows like the arrays above.
+    customers: [],
+    liveOrders: [],
+    orderHistory: [],
+    disputes: [],
+    foods: [],
+    categories: [],
+    cuisines: [],
+    offers: [],
+    restaurants: [],
+    owners: [],
+    onboarding: [],
+    deliveryBoys: [],
+    deliveryOnboarding: [],
+    payouts: [],
+    commission: [],
+    revenue: [],
+    banners: [],
+    documents: [],
+    admins: [],
     nameRequests: []
   };
 
@@ -1904,48 +1737,10 @@
     });
   });
 
-  // ---------- Live / Testing environment switch (REAL data separation) ----------
-  // Switching env changes the collection namespace every read/write uses
-  // (see envCol), tears down the live listeners, and re-subscribes against the
-  // other dataset — so the two environments are genuinely isolated, not a label.
-  const envSwitchBtn = document.getElementById('env-switch');
-  const envSwitchLabel = document.getElementById('env-switch-label');
-  const envBanner = document.getElementById('env-banner');
-
-  function applyEnvUI(env) {
-    envSwitchBtn.dataset.env = env;
-    envSwitchLabel.textContent = env === 'live' ? 'LIVE' : 'TESTING';
-    envBanner.style.display = env === 'test' ? '' : 'none';
-  }
-  // Reflect the persisted env on first paint so a refresh keeps the choice.
-  applyEnvUI(dataEnv());
-
-  // Re-pull every dataset for the current env and re-render the open page.
-  // Defined here; the loader/render functions below are hoisted declarations.
-  async function reloadAllDataForEnv() {
-    try {
-      await Promise.all([loadRealData(), loadAdmins(), loadNameChangeRequests()]);
-    } catch (e) {
-      console.error('[Admin] env reload failed', e);
-      showToast('Some data failed to load for this environment — check console.');
-    }
-    updateNavBadges();
-    navigateTo(currentPageKey || 'dashboard');
-  }
-
-  let _envSwitching = false;
-  envSwitchBtn.addEventListener('click', async () => {
-    if (_envSwitching) return; // ignore rapid double-clicks mid-reload
-    _envSwitching = true;
-    const next = dataEnv() === 'live' ? 'test' : 'live';
-    setDataEnv(next);
-    applyEnvUI(next);
-    showToast(next === 'test'
-      ? 'Switched to TESTING — showing the isolated test dataset.'
-      : 'Switched to LIVE — showing the real production dataset.');
-    await reloadAllDataForEnv();
-    _envSwitching = false;
-  });
+  // NOTE: the Live/Testing environment switch is wired inside the Firebase
+  // IIFE below (search "environment switch") — it needs dataEnv()/loadRealData()
+  // which are private to that scope. Keeping it here threw a ReferenceError at
+  // load and silently broke the toggle (and this block's init).
 
   // ---------- Role preview (sidebar UX demo only) ----------
   const rolePreviewSelect = document.getElementById('role-preview-select');
@@ -2098,14 +1893,9 @@
 
   const money2 = (n) => 'QAR ' + Number(n || 0).toFixed(2);
 
-  // Restaurant metadata not stored in Firestore (mirrors the vendor app's
-  // hardcoded test-account map) — used only for cuisine/owner fallback
-  // display when a restaurant has no Firestore vendorAccounts doc.
-  const TEST_VENDOR_OWNERS = {
-    r001: 'timhortons@testrun.qa', r002: 'oakberry@testrun.qa', r003: 'edgecafe@testrun.qa',
-    r004: 'caribou@testrun.qa', r005: 'jamkai@testrun.qa', r006: 'boldcafe@testrun.qa',
-    r007: 'lhardy@testrun.qa', r008: 'ennabi@testrun.qa',
-  };
+  // Owner email is resolved live from vendors/{uid} docs only.
+  // A restaurant with no vendor doc shows '—' rather than a hardcoded email.
+  const TEST_VENDOR_OWNERS = {};
 
   const LIVE_ORDER_STATUSES = new Set(['placed', 'preparing', 'ready', 'assigned', 'pickedUp', 'enRoute']);
 
@@ -2135,8 +1925,8 @@
   // actually happening across the whole system live, not a stale snapshot
   // from whenever they last logged in or manually refreshed.
   let _liveUnsubs = [];
-  let _liveDocs = { users: [], orders: [], restaurants: [], vendorAccounts: [], vendors: [], drivers: [] };
-  let _liveLoaded = { users: false, orders: false, restaurants: false, vendorAccounts: false, vendors: false, drivers: false };
+  let _liveDocs = { users: [], orders: [], restaurants: [], vendors: [], drivers: [] };
+  let _liveLoaded = { users: false, orders: false, restaurants: false, vendors: false, drivers: false };
 
   function teardownLiveListeners() {
     _liveUnsubs.forEach((fn) => fn());
@@ -2145,26 +1935,45 @@
 
   function loadRealData() {
     teardownLiveListeners();
+    // Reset load-state for a clean switch: every listener must re-report for
+    // the new environment. Stale docs from the previous env are cleared so a
+    // switch never briefly shows the other dataset.
+    Object.keys(_liveLoaded).forEach((k) => { _liveLoaded[k] = false; _liveDocs[k] = []; });
     return new Promise((resolve) => {
       let resolved = false;
-      const onUpdate = (key) => (snap) => {
-        _liveDocs[key] = snap.docs;
-        _liveLoaded[key] = true;
-        _recomputeDashboard();
+      const settle = () => {
+        // Resolve once every listener has either loaded or errored — a single
+        // permission-denied collection must NOT hang the promise, or the env
+        // switch guard (_envSwitching) would never reset and freeze the toggle.
         if (!resolved && Object.values(_liveLoaded).every(Boolean)) {
           resolved = true;
           resolve();
         }
       };
-      const onErr = (key) => (err) => console.error(`[Admin] ${key} listener failed`, err);
+      const onUpdate = (key) => (snap) => {
+        _liveDocs[key] = snap.docs;
+        _liveLoaded[key] = true;
+        _recomputeDashboard();
+        settle();
+      };
+      const onErr = (key) => (err) => {
+        console.error(`[Admin] ${key} listener failed`, err);
+        // Treat an errored listener as "settled" (with no docs) so it can't
+        // block resolution. The page still renders from the collections that did load.
+        _liveLoaded[key] = true;
+        _recomputeDashboard();
+        settle();
+      };
+      // Safety net: never let a switch hang indefinitely, even if a listener
+      // neither fires nor errors (e.g. offline). Resolve after 8s regardless.
+      setTimeout(() => { if (!resolved) { resolved = true; resolve(); } }, 8000);
 
       _liveUnsubs.push(db.collection(envCol('users')).onSnapshot(onUpdate('users'), onErr('users')));
       _liveUnsubs.push(db.collection(envCol('orders')).onSnapshot(onUpdate('orders'), onErr('orders')));
       _liveUnsubs.push(db.collection(envCol('restaurants')).onSnapshot(onUpdate('restaurants'), onErr('restaurants')));
-      _liveUnsubs.push(db.collection(envCol('vendorAccounts')).onSnapshot(onUpdate('vendorAccounts'), onErr('vendorAccounts')));
       // The vendor app writes its profile to `vendors/{uid}` (restaurantId,
-      // email, name), NOT `vendorAccounts` — surface it so real vendor sign-ups
-      // link to their restaurant (owner email) in the dashboard.
+      // email, name) — the source for the restaurant→owner-email link.
+      // (Legacy `vendorAccounts` is dead and locked down in rules, so it's not read.)
       _liveUnsubs.push(db.collection(envCol('vendors')).onSnapshot(onUpdate('vendors'), onErr('vendors')));
       _liveUnsubs.push(db.collection(envCol('drivers')).onSnapshot(onUpdate('drivers'), onErr('drivers')));
     });
@@ -2174,7 +1983,6 @@
     const usersSnap = { docs: _liveDocs.users };
     const ordersSnap = { docs: _liveDocs.orders };
     const restaurantsSnap = { docs: _liveDocs.restaurants };
-    const vendorAccountsSnap = { docs: _liveDocs.vendorAccounts };
     const driversSnap = { docs: _liveDocs.drivers };
 
     // ---- Orders: split into live vs history, and tally per-customer spend ----
@@ -2237,17 +2045,13 @@
       };
     });
 
-    // ---- Restaurants (cross-ref vendor accounts for owner email) ----
-    // Merge both sources: legacy `vendorAccounts` (email-keyed) and the real
-    // `vendors/{uid}` docs the vendor app actually writes on sign-in.
+    // ---- Restaurants (cross-ref vendors/{uid} for owner email) ----
+    // Owner email comes from the `vendors/{uid}` docs the vendor app writes
+    // on sign-in (restaurantId, email, name).
     const ownerByRestaurantId = {};
-    vendorAccountsSnap.docs.forEach((d) => {
-      const v = d.data();
-      if (v.restaurantId) ownerByRestaurantId[v.restaurantId] = v.email || d.id;
-    });
     (_liveDocs.vendors || []).forEach((d) => {
       const v = d.data();
-      if (v.restaurantId) ownerByRestaurantId[v.restaurantId] = v.email || ownerByRestaurantId[v.restaurantId] || d.id;
+      if (v.restaurantId) ownerByRestaurantId[v.restaurantId] = v.email || d.id;
     });
     const restaurants = restaurantsSnap.docs.map((d) => {
       const r = d.data();
@@ -2288,9 +2092,7 @@
     setText('snap-delivered', snapCounts.delivered);
     setText('snap-cancelled', snapCounts.cancelled);
 
-    // ---- Top Performers: real aggregation from allOrders, replacing what
-    // used to be a permanently hardcoded "Zinger Burger / Burger Barn" list
-    // with no real backing data at all. ----
+    // ---- Top Performers: real aggregation from allOrders. ----
     const itemCounts = {};
     allOrders.forEach((o) => {
       (Array.isArray(o.items) ? o.items : []).forEach((i) => {
@@ -2331,8 +2133,7 @@
         : '<div class="item-bar-row"><span class="item-bar-name" style="color:var(--muted)">No orders yet</span></div>';
     }
 
-    // ---- Recent Activity: the 5 most recently placed real orders, instead
-    // of a permanently hardcoded "#1042 / Burger Barn / 2m ago" list. ----
+    // ---- Recent Activity: the 5 most recently placed real orders. ----
     const recentOrders = [...allOrders]
       .filter((o) => o.createdAt && o.createdAt.toDate)
       .sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate())
@@ -2512,6 +2313,50 @@
     updateNavBadges();
     navigateTo(currentPageKey || 'dashboard');
   }
+
+  // ---------- Live / Testing environment switch (REAL data separation) ----------
+  // Lives inside this IIFE so it can reach dataEnv()/setDataEnv()/loadRealData()/
+  // loadAdmins()/loadNameChangeRequests() (private here) alongside the global UI
+  // helpers (updateNavBadges/navigateTo/showToast). Switching changes the
+  // collection namespace every read uses (envCol), tears down the live listeners,
+  // and re-subscribes against the other dataset — genuine isolation, not a label.
+  const envSwitchBtn = document.getElementById('env-switch');
+  const envSwitchLabel = document.getElementById('env-switch-label');
+  const envBanner = document.getElementById('env-banner');
+
+  function applyEnvUI(env) {
+    envSwitchBtn.dataset.env = env;
+    envSwitchLabel.textContent = env === 'live' ? 'LIVE' : 'TESTING';
+    envBanner.style.display = env === 'test' ? '' : 'none';
+  }
+  // Reflect the persisted env on first paint so a refresh keeps the choice.
+  applyEnvUI(dataEnv());
+
+  // Re-pull every dataset for the current env and re-render the open page.
+  async function reloadAllDataForEnv() {
+    try {
+      await Promise.all([loadRealData(), loadAdmins(), loadNameChangeRequests()]);
+    } catch (e) {
+      console.error('[Admin] env reload failed', e);
+      showToast('Some data failed to load for this environment — check console.');
+    }
+    updateNavBadges();
+    navigateTo(currentPageKey || 'dashboard');
+  }
+
+  let _envSwitching = false;
+  envSwitchBtn.addEventListener('click', async () => {
+    if (_envSwitching) return; // ignore rapid double-clicks mid-reload
+    _envSwitching = true;
+    const next = dataEnv() === 'live' ? 'test' : 'live';
+    setDataEnv(next);
+    applyEnvUI(next);
+    showToast(next === 'test'
+      ? 'Switched to TESTING — showing the isolated test dataset.'
+      : 'Switched to LIVE — showing the real production dataset.');
+    await reloadAllDataForEnv();
+    _envSwitching = false;
+  });
 
   auth.onAuthStateChanged((user) => {
     if (user) {
