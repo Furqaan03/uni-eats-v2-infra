@@ -1574,7 +1574,7 @@
             <div class="bar-wrap" style="width:54px; height:150px;"><div class="bar this" style="height:${Math.round((r.revenue / max) * 100)}%"><span class="bar-value">${r.revenue.toFixed(0)}</span></div></div>
             <div class="bar-col-label">${r.date.slice(5)}</div>
           </div>`).join('');
-        const rows = DB.revenue.map(r => `<tr><td class="cell-main">${r.date}</td><td>${r.orders}</td><td>${money(r.revenue)}</td><td>${money(r.commission)}</td></tr>`).join('');
+        const rows = [...DB.revenue].reverse().map(r => `<tr><td class="cell-main">${r.date}</td><td>${r.orders}</td><td>${money(r.revenue)}</td><td>${money(r.commission)}</td></tr>`).join('');
         return `
           <div class="profit-stats" style="grid-template-columns:repeat(2,1fr);">
             <div class="stat-card"><div class="stat-label">Revenue (Last 7 Days)</div><div class="stat-value">${money(totalRevenue)}</div></div>
@@ -2364,8 +2364,11 @@
   }
 
   // Pages still on prototype demo data — shown with a banner.
-  const DEMO_PAGES = new Set(['disputes', 'foods', 'categories', 'cuisine', 'offers', 'owners',
-    'onboarding', 'delivery-onboarding', 'payouts', 'commission', 'revenue', 'banners', 'documents']);
+  // Pages with no live data source yet (show the "not connected" banner).
+  // foods/offers/owners/delivery-onboarding/revenue are now wired, so they're
+  // no longer here.
+  const DEMO_PAGES = new Set(['disputes', 'categories', 'cuisine',
+    'onboarding', 'payouts', 'commission', 'banners', 'documents']);
   const originalNavigateTo = navigateTo;
   navigateTo = function (pageKey) {
     originalNavigateTo(pageKey);
